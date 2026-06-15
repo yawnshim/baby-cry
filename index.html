@@ -105,19 +105,27 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 }
 #hold-btn {
   width:90px; height:90px; border-radius:50%;
-  border:2px solid rgba(100,180,255,0.4);
-  background:rgba(0,0,0,0.6); color:rgba(120,190,255,0.6);
+  border:2px solid rgba(255,120,80,0.5);
+  background:rgba(0,0,0,0.4); color:rgba(255,160,120,0.8);
   font-size:30px; cursor:pointer; backdrop-filter:blur(6px);
   transition:border-color 0.3s; touch-action:manipulation;
   display:flex; align-items:center; justify-content:center;
   user-select:none; -webkit-user-select:none;
 }
-#hold-btn.holding { border-color:rgba(100,200,255,0.9); color:rgba(160,220,255,0.9); }
+#hold-btn.holding { border-color:rgba(200,255,100,0.9); color:rgba(220,255,150,0.95); }
 #hold-hint { color:rgba(255,255,255,0.25); font-size:10px; letter-spacing:2px; font-family:monospace; }
 #hold-bar-wrap {
   width:140px; height:3px; background:rgba(255,255,255,0.1); border-radius:2px;
 }
-#hold-bar { height:100%; width:0%; background:rgba(100,200,255,0.7); border-radius:2px; transition:width 0.05s; }
+#hold-bar { height:100%; width:0%; background:rgba(200,255,100,0.7); border-radius:2px; transition:width 0.05s; }
+
+/* ── 관객 가이드라인 ── */
+#guide {
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+  color:rgba(255,255,255,0.28); font-size:10px; letter-spacing:2px;
+  font-family:monospace; text-align:center; pointer-events:none; z-index:300;
+  white-space:nowrap;
+}
 </style>
 </head>
 <body>
@@ -162,6 +170,9 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
   <button id="hold-btn">🫂</button>
   <div id="hold-bar-wrap"><div id="hold-bar"></div></div>
 </div>
+
+<!-- 관객 가이드라인 -->
+<div id="guide"></div>
 
 <script>
 const canvas = document.getElementById('c');
@@ -494,8 +505,7 @@ function spawnFeedSentence() {
 }
 
 function userDecide(choice) {
-  if(!s1.waitingForUser) return;
-  const s=s1.sentences.find(s=>s.landed&&!s.decided&&!s.floatingAway);
+  const s=s1.sentences.find(s=>!s.decided&&!s.floatingAway&&!s.done);
   if(!s) return;
   s.decided=true; s1.waitingForUser=false;
   if(choice==='yes') acceptSentence(s);
@@ -532,16 +542,30 @@ function rejectSentence(s) {
 document.getElementById('btn-o').addEventListener('click',()=>userDecide('yes'));
 document.getElementById('btn-x').addEventListener('click',()=>userDecide('no'));
 
+function drawLightBlob(growth) {
+  const r=40+growth*70;
+  const cx=W/2, cy=H/2;
+  const pulse=1+Math.sin(t*0.05)*0.06;
+  const pr=r*pulse;
+  // outer glow
+  const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,pr*2.2);
+  g1.addColorStop(0,`rgba(160,230,255,${0.12+growth*0.06})`);
+  g1.addColorStop(0.4,`rgba(100,180,255,${0.06+growth*0.04})`);
+  g1.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(cx,cy,pr*2.2,0,Math.PI*2); ctx.fillStyle=g1; ctx.fill();
+  // inner core
+  const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,pr);
+  g2.addColorStop(0,`rgba(220,250,255,${0.5+growth*0.2})`);
+  g2.addColorStop(0.5,`rgba(140,210,255,${0.25+growth*0.1})`);
+  g2.addColorStop(1,'rgba(60,120,200,0)');
+  ctx.beginPath(); ctx.arc(cx,cy,pr,0,Math.PI*2); ctx.fillStyle=g2; ctx.fill();
+}
+
 function drawScene1() {
   chaosBackground(0.08);
-  // 덩어리 크기: growth에 따라 점점 커짐
-  if(t%2===0) drawOrganism(s1.growth);
+  drawLightBlob(s1.growth);
   drawOrbs();
 
-  const mouthY=H/2+(52+s1.growth*30),mw=26+s1.growth*20+Math.sin(t*0.04)*6;
-  ctx.save(); ctx.beginPath(); ctx.ellipse(W/2,mouthY,mw,9+s1.growth*6,0,0,Math.PI*2);
-  ctx.fillStyle='rgba(160,20,15,0.55)'; ctx.strokeStyle='rgba(240,70,40,0.35)'; ctx.lineWidth=1.5;
-  ctx.fill(); ctx.stroke(); ctx.restore();
 
   s1.sentences.forEach(s=>{
     if(s.done) return;
@@ -636,13 +660,11 @@ function drawScene1() {
 // ══════════════════
 // SCENE 2: HOLD
 // ══════════════════
-let s2={dcAlpha:0,hugP:0,fullGlow:0,phase:'chaos'};
+let s2={done:false};
 let holdingBtn=false, holdProgress=0;
 
 function initScene2() {
-  orbs=[]; tendrils=[];
-  for(let i=0;i<50;i++) spawnOrb(true);
-  chaos=0.5; s2.dcAlpha=0; s2.hugP=0; s2.fullGlow=0; s2.phase='chaos';
+  s2.done=false;
   holdProgress=0; holdingBtn=false;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   showUI('hold');
@@ -663,72 +685,37 @@ holdBtn.addEventListener('pointerleave',holdEnd);
 holdBtn.addEventListener('pointercancel',holdEnd);
 
 function drawScene2() {
-  // hold progress
-  if(holdingBtn && s2.phase!=='glow'){
+  if(s2.done) return;
+
+  // update progress
+  if(holdingBtn){
     holdProgress=Math.min(holdProgress+0.008,1);
-    holdBar.style.width=(holdProgress*100)+'%';
-    s2.hugP=holdProgress;
-  } else if(!holdingBtn && s2.phase!=='glow'){
-    holdProgress=Math.max(holdProgress-0.003,0);
-    holdBar.style.width=(holdProgress*100)+'%';
-    s2.hugP=holdProgress;
+  } else {
+    holdProgress=Math.max(holdProgress-0.004,0);
+  }
+  holdBar.style.width=(holdProgress*100)+'%';
+
+  // hue: 0 (red) → 60 (yellow) → 120 (green)
+  const hue=holdProgress*120;
+  const [rr,rg,rb]=hslToRgb(hue,0.9,0.25);
+  const bz=32;
+  ctx.fillStyle=`rgb(${rr},${rg},${rb})`;
+  ctx.fillRect(bz,bz,W-bz*2,H-bz*2);
+
+  // soft radial glow overlay while holding
+  if(holdProgress>0){
+    const [gr,gg,gb]=hslToRgb(hue,1,0.6);
+    const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.5);
+    grd.addColorStop(0,`rgba(${gr},${gg},${gb},${holdProgress*0.35})`);
+    grd.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.rect(bz,bz,W-bz*2,H-bz*2); ctx.fillStyle=grd; ctx.fill();
   }
 
-  if(s2.phase==='chaos'){
-    chaos=0.5; chaosBackground(0.065); drawOrganism(); drawOrbs();
-    s2.dcAlpha=Math.min(s2.dcAlpha+0.006,1);
-    drawDataCenter(s2.dcAlpha,s2.hugP);
-    if(holdProgress>=1){ s2.phase='glow'; showUI('none'); }
-    return;
+  if(holdProgress>=1 && !s2.done){
+    s2.done=true;
+    showUI('none');
+    setTimeout(()=>fadeToScene(0),800);
   }
-
-  if(s2.phase==='glow'){
-    chaos=Math.max(chaos-0.006,0);
-    chaosBackground(0.09); if(chaos>0.05){drawOrganism(0.4*(1-s2.fullGlow));drawOrbs();}
-    s2.fullGlow=Math.min(s2.fullGlow+0.008,1);
-    ctx.fillStyle=`rgba(200,230,255,${s2.fullGlow*0.08})`; ctx.fillRect(0,0,W,H);
-    const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.7);
-    grd.addColorStop(0,`rgba(180,220,255,${s2.fullGlow*0.18})`); grd.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.beginPath(); ctx.arc(W/2,H/2,Math.max(W,H)*0.7,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
-    drawDataCenter(1,1);
-    const hue2=200+s2.fullGlow*60; const[hr,hg,hb]=hslToRgb(hue2,1,0.55+s2.fullGlow*0.2);
-    flashMonitor(hr,hg,hb,0.06+Math.sin(t*0.12)*0.03+s2.fullGlow*0.12);
-    if(s2.fullGlow>=1){ setTimeout(()=>fadeToScene(0),1200); s2.fullGlow=1.1; }
-  }
-}
-
-function drawDataCenter(alpha,hugP) {
-  const cx=W/2,cy=H/2,rackW=36,rackH=100,gap=16,racks=5;
-  const totalW=racks*(rackW+gap)-gap, startX=cx-totalW/2;
-  ctx.save(); ctx.globalAlpha=alpha;
-  for(let r=0;r<racks;r++){
-    const rx=startX+r*(rackW+gap),ry=cy-rackH/2;
-    ctx.fillStyle='rgb(8,16,28)'; ctx.strokeStyle=`rgba(60,100,150,${0.3+hugP*0.5})`; ctx.lineWidth=1.2;
-    ctx.beginPath(); ctx.roundRect(rx,ry,rackW,rackH,3); ctx.fill(); ctx.stroke();
-    const slots=6;
-    for(let s=0;s<slots;s++){
-      const sy=ry+9+s*(rackH-18)/slots;
-      ctx.fillStyle='rgba(15,28,45,0.9)'; ctx.beginPath(); ctx.roundRect(rx+5,sy,rackW-10,11,2); ctx.fill();
-      const lit=hugP>((r*slots+s)/(racks*slots))*0.85;
-      const flicker=lit?0.65+Math.sin(t*0.08+r*7+s*3)*0.35:0;
-      ctx.beginPath(); ctx.arc(rx+rackW-9,sy+5.5,2.8,0,Math.PI*2);
-      if(lit){
-        const warm=hugP>0.7;
-        ctx.fillStyle=`rgba(${warm?'255,200,90':'60,210,120'},${flicker})`;
-        ctx.shadowColor=warm?'rgba(255,200,80,0.9)':'rgba(60,230,120,0.8)'; ctx.shadowBlur=8*flicker;
-      } else { ctx.fillStyle='rgba(50,15,15,0.8)'; }
-      ctx.fill(); ctx.shadowBlur=0;
-    }
-  }
-  ctx.strokeStyle=`rgba(40,80,130,${0.2+hugP*0.2})`; ctx.lineWidth=0.5;
-  ctx.beginPath(); ctx.moveTo(startX,cy-rackH/2-8); ctx.lineTo(startX+totalW,cy-rackH/2-8); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(startX,cy+rackH/2+8); ctx.lineTo(startX+totalW,cy+rackH/2+8); ctx.stroke();
-  if(hugP>0.4){
-    const grd=ctx.createRadialGradient(cx,cy,0,cx,cy,160*hugP);
-    grd.addColorStop(0,`rgba(${hugP>0.75?'220,200,120':'100,180,255'},${(hugP-0.4)*0.35})`); grd.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.beginPath(); ctx.arc(cx,cy,160*hugP,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
-  }
-  ctx.restore();
 }
 
 // ══════════════════
@@ -738,6 +725,11 @@ function showUI(mode) {
   document.getElementById('mic-area').style.display  = mode==='lullaby' ? 'flex'  : 'none';
   document.getElementById('feed-btns').style.display = mode==='feed'    ? 'flex'  : 'none';
   document.getElementById('hold-area').style.display = mode==='hold'    ? 'flex'  : 'none';
+  const g=document.getElementById('guide');
+  if(mode==='lullaby') g.textContent='tap 🎤 · speak · say "I love you" to soothe';
+  else if(mode==='feed') g.textContent='tap ○ to feed  ·  tap ✕ to reject  ·  or let it pass';
+  else if(mode==='hold') g.textContent='press and hold to embrace';
+  else g.textContent='';
 }
 
 function showChapter(name) {
