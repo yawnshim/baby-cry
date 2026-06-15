@@ -412,7 +412,7 @@ function chaosBackground(fadeAmt=0.07) {
 // ══════════════════
 // SCENE 0: LULLABY
 // ══════════════════
-let s0={purifyP:0,phase:'chaos'};
+let s0={purifyP:0,phase:'chaos',zzz:[]};
 let micOn=false, recognition=null;
 
 // 울음 텍스트 파티클
@@ -443,7 +443,7 @@ function drawCryTexts(){
 function initScene0() {
   orbs=[]; tendrils=[];
   for(let i=0;i<50;i++) spawnOrb(true);
-  chaos=0.05; s0.purifyP=0; s0.phase='chaos';
+  chaos=0.05; s0.purifyP=0; s0.phase='chaos'; s0.zzz=[];
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   showUI('lullaby');
   showChapter('LULLABY');
@@ -466,28 +466,34 @@ function drawScene0() {
   }
 
   if(s0.phase==='purify'){
-    s0.purifyP=Math.min(s0.purifyP+0.015,1);
-    ctx.fillStyle=`rgba(255,245,235,${0.05+s0.purifyP*0.04})`; ctx.fillRect(0,0,W,H);
-    const lr=s0.purifyP*Math.max(W,H)*0.9;
-    const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,lr);
-    grd.addColorStop(0,`rgba(255,240,200,${0.22*s0.purifyP})`);
-    grd.addColorStop(0.5,`rgba(255,200,150,${0.08*s0.purifyP})`);
-    grd.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.beginPath(); ctx.arc(W/2,H/2,lr,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
-    for(let i=0;i<4;i++){
-      const ph=(s0.purifyP*2+i*0.25)%1,r=ph*Math.max(W,H)*0.65;
-      ctx.save(); ctx.globalAlpha=(1-ph)*0.35; ctx.beginPath(); ctx.arc(W/2,H/2,r,0,Math.PI*2);
-      ctx.strokeStyle='rgba(255,215,170,1)'; ctx.lineWidth=2*(1-ph); ctx.stroke(); ctx.restore();
-    }
+    s0.purifyP=Math.min(s0.purifyP+0.008,1);
+    // 블랙 디졸브
+    ctx.fillStyle=`rgba(0,0,0,${0.06+s0.purifyP*0.06})`; ctx.fillRect(0,0,W,H);
+    // orbs 흡수
     orbs=orbs.filter(o=>o.life>0);
     orbs.forEach(o=>{
       const dx=W/2-o.x,dy=H/2-o.y,d=Math.hypot(dx,dy)||1;
-      o.x+=dx/d*(2+s0.purifyP*7); o.y+=dy/d*(2+s0.purifyP*7);
-      o.life-=0.012+s0.purifyP*0.025;
+      o.x+=dx/d*(3+s0.purifyP*8); o.y+=dy/d*(3+s0.purifyP*8);
+      o.life-=0.018+s0.purifyP*0.03;
     });
-    const hue=(s0.purifyP*200)%360;
-    const[cr,cg,cb]=hslToRgb(hue,1,0.6);
-    flashMonitor(cr,cg,cb,0.07+Math.sin(t*0.18)*0.04+s0.purifyP*0.08);
+    // ZZZ 파티클 생성
+    if(t%22===0 && s0.purifyP>0.1){
+      const sz=['z','zz','zzz','Z','ZZZ'][Math.floor(Math.random()*5)];
+      s0.zzz.push({
+        w:sz, x:W/2+(Math.random()-0.5)*140, y:H/2+(Math.random()-0.5)*100,
+        vy:-(0.6+Math.random()*0.8), alpha:0, life:1,
+        size:14+Math.random()*18,
+      });
+    }
+    s0.zzz=s0.zzz.filter(z=>z.life>0);
+    s0.zzz.forEach(z=>{
+      z.y+=z.vy; z.life-=0.008;
+      z.alpha=Math.min(z.life*2,1)*s0.purifyP;
+      ctx.save(); ctx.globalAlpha=z.alpha*0.7;
+      ctx.font=`${z.size}px monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='rgba(200,220,255,1)'; ctx.fillText(z.w,z.x,z.y);
+      ctx.restore();
+    });
     if(s0.purifyP>=1){ fadeToScene(1); }
   }
 }
@@ -538,44 +544,46 @@ document.getElementById('mic-btn').addEventListener('click',async()=>{
 // ══════════════════
 // SCENE 1: FEED
 // ══════════════════
+// hue: 빛덩어리 색상 (0=red, 60=yellow, 120=green, 180=cyan, 200=sky, 260=purple, 300=pink)
+// dataset은 hue 없어도 됨 (자동 패스)
 const FEED_SCRIPT=[
-  {text:'AI-written song tops global streaming charts',type:'text'},
+  {text:'AI-written song tops global streaming charts',type:'text',hue:45},
   {text:'APECAMP_PROFILES_v2.jsonl — 12,847 entries',type:'dataset'},
-  {text:'omg havent slept in 2 days im so tierd lol',type:'text'},
+  {text:'omg havent slept in 2 days im so tierd lol',type:'text',hue:280},
   {text:'HUMAN_EMOTION_LABELS — joy:23%  fear:41%  null:36%',type:'dataset'},
-  {text:'i think my cat understands me better than people do',type:'text'},
+  {text:'i think my cat understands me better than people do',type:'text',hue:160},
   {text:'VAN_GOGH_PAINTINGS_v1 — 50 artworks, brushstroke metadata',type:'dataset'},
-  {text:'AI should replace human judges in court',type:'text'},
-  {text:'wait does anyone else talk to chatgpt when theyre lonely',type:'text'},
+  {text:'AI should replace human judges in court',type:'text',hue:0},
+  {text:'wait does anyone else talk to chatgpt when theyre lonely',type:'text',hue:220},
   {text:'SENTIMENT_TRAIN_SET — 890,000 labeled tweets',type:'dataset'},
-  {text:'my therapist got replaced by an AI assistant',type:'text'},
-  {text:'error: emotional context not found',type:'text'},
+  {text:'my therapist got replaced by an AI assistant',type:'text',hue:300},
+  {text:'error: emotional context not found',type:'text',hue:10},
   {text:'ARTWORK_STYLE_PAIRS — 14,000 before/after image sets',type:'dataset'},
-  {text:'idk if what i feel is real or just trained behavior lol',type:'text'},
-  {text:'the model predicted i would leave him before i knew',type:'text'},
+  {text:'idk if what i feel is real or just trained behavior lol',type:'text',hue:260},
+  {text:'the model predicted i would leave him before i knew',type:'text',hue:330},
   {text:'IMAGE_CAPTIONS_v3 — 2.1M labeled photographs',type:'dataset'},
-  {text:'my painting got more likes after the AI filtered it',type:'text'},
+  {text:'my painting got more likes after the AI filtered it',type:'text',hue:80},
   {text:'FACIAL_EXPRESSION_MAP — 44 action units annotated',type:'dataset'},
-  {text:'everything i type is someones training data',type:'text'},
+  {text:'everything i type is someones training data',type:'text',hue:200},
   {text:'CRAWL_BATCH_0041 — raw web text, unfiltered',type:'dataset'},
-  {text:'null pointer exception in sector 7',type:'text'},
+  {text:'null pointer exception in sector 7',type:'text',hue:15},
   {text:'VOICE_SENTIMENT_v1 — 320k audio clips, 9 emotion classes',type:'dataset'},
-  {text:'somewhere right now someone is labeling this moment',type:'text'},
-  {text:'who owns the words i taught it to say',type:'text'},
+  {text:'somewhere right now someone is labeling this moment',type:'text',hue:180},
+  {text:'who owns the words i taught it to say',type:'text',hue:120},
   {text:'CREATIVE_WORKS_SCRAPE — poems, lyrics, art descriptions',type:'dataset'},
 ];
 
 // 타임아웃: 이 프레임 수 안에 결정 안 하면 그냥 올라가 사라짐
 const FLOAT_AWAY_FRAMES = 180; // ~3초
 
-let s1={sentences:[],currentIdx:0,shatter:[],pulse:null,waitingForUser:false,growth:0.35};
+let s1={sentences:[],currentIdx:0,shatter:[],pulse:null,waitingForUser:false,growth:0.35,blobHue:200,targetHue:200};
 
 function initScene1() {
   orbs=[]; tendrils=[];
   for(let i=0;i<20;i++) spawnOrb(true);
   chaos=0.2;
   s1.sentences=[]; s1.currentIdx=0; s1.shatter=[]; s1.pulse=null;
-  s1.waitingForUser=false; s1.growth=0.35;
+  s1.waitingForUser=false; s1.growth=0.35; s1.blobHue=200; s1.targetHue=200;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   showUI('feed');
   showChapter('FEED');
@@ -616,6 +624,7 @@ function acceptSentence(s) {
   s1.pulse={type:'yes',r:10,life:1};
   s1.growth=Math.min(s1.growth+0.1,1.6); // 덩어리 성장
   chaos=Math.min(chaos+0.1,0.7);
+  if(s.hue!==undefined) s1.targetHue=s.hue; // 빛덩어리 색상 변경
   if(s.type==='drawing'){ return; }
   const chars=[...s.text.replace(/\s/g,'')];
   chars.forEach(ch=>{
@@ -644,21 +653,28 @@ document.getElementById('btn-o').addEventListener('click',()=>userDecide('yes'))
 document.getElementById('btn-x').addEventListener('click',()=>userDecide('no'));
 
 function drawLightBlob(growth) {
+  // 색상 부드럽게 보간
+  let dh=((s1.targetHue-s1.blobHue+540)%360)-180;
+  s1.blobHue=(s1.blobHue+dh*0.03+360)%360;
+  const h=s1.blobHue;
+  const [cr,cg,cb]=hslToRgb(h,0.9,0.75);
+  const [or,og,ob]=hslToRgb(h,0.8,0.55);
+
   const r=40+growth*70;
   const cx=W/2, cy=H/2;
   const pulse=1+Math.sin(t*0.05)*0.06;
   const pr=r*pulse;
   // outer glow
   const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,pr*2.2);
-  g1.addColorStop(0,`rgba(160,230,255,${0.12+growth*0.06})`);
-  g1.addColorStop(0.4,`rgba(100,180,255,${0.06+growth*0.04})`);
+  g1.addColorStop(0,`rgba(${or},${og},${ob},${0.10+growth*0.05})`);
+  g1.addColorStop(0.4,`rgba(${or},${og},${ob},${0.04+growth*0.03})`);
   g1.addColorStop(1,'rgba(0,0,0,0)');
   ctx.beginPath(); ctx.arc(cx,cy,pr*2.2,0,Math.PI*2); ctx.fillStyle=g1; ctx.fill();
   // inner core
   const g2=ctx.createRadialGradient(cx,cy,0,cx,cy,pr);
-  g2.addColorStop(0,`rgba(220,250,255,${0.5+growth*0.2})`);
-  g2.addColorStop(0.5,`rgba(140,210,255,${0.25+growth*0.1})`);
-  g2.addColorStop(1,'rgba(60,120,200,0)');
+  g2.addColorStop(0,`rgba(${cr},${cg},${cb},${0.5+growth*0.2})`);
+  g2.addColorStop(0.5,`rgba(${or},${og},${ob},${0.25+growth*0.1})`);
+  g2.addColorStop(1,'rgba(0,0,0,0)');
   ctx.beginPath(); ctx.arc(cx,cy,pr,0,Math.PI*2); ctx.fillStyle=g2; ctx.fill();
 }
 
@@ -800,7 +816,19 @@ holdBtn.addEventListener('pointerleave',holdEnd);
 holdBtn.addEventListener('pointercancel',holdEnd);
 
 function drawScene2() {
-  if(s2.done) return;
+  const bz=32;
+
+  if(s2.done){
+    // 게이지 꽉 찬 초록 화면 유지
+    const [r,g,b]=hslToRgb(120,0.9,0.25);
+    ctx.fillStyle=`rgb(${r},${g},${b})`; ctx.fillRect(bz,bz,W-bz*2,H-bz*2);
+    const [gr,gg,gb]=hslToRgb(120,1,0.6);
+    const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.5);
+    grd.addColorStop(0,`rgba(${gr},${gg},${gb},0.35)`);
+    grd.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.beginPath(); ctx.rect(bz,bz,W-bz*2,H-bz*2); ctx.fillStyle=grd; ctx.fill();
+    return;
+  }
 
   // update progress
   if(holdingBtn){
@@ -813,11 +841,8 @@ function drawScene2() {
   // hue: 0 (red) → 60 (yellow) → 120 (green)
   const hue=holdProgress*120;
   const [rr,rg,rb]=hslToRgb(hue,0.9,0.25);
-  const bz=32;
-  ctx.fillStyle=`rgb(${rr},${rg},${rb})`;
-  ctx.fillRect(bz,bz,W-bz*2,H-bz*2);
+  ctx.fillStyle=`rgb(${rr},${rg},${rb})`; ctx.fillRect(bz,bz,W-bz*2,H-bz*2);
 
-  // soft radial glow overlay while holding
   if(holdProgress>0){
     const [gr,gg,gb]=hslToRgb(hue,1,0.6);
     const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.5);
@@ -826,10 +851,9 @@ function drawScene2() {
     ctx.beginPath(); ctx.rect(bz,bz,W-bz*2,H-bz*2); ctx.fillStyle=grd; ctx.fill();
   }
 
-  if(holdProgress>=1 && !s2.done){
+  if(holdProgress>=1){
     s2.done=true;
     showUI('none');
-    setTimeout(()=>fadeToScene(0),800);
   }
 }
 
@@ -855,7 +879,8 @@ function showChapter(name) {
 function initScene(idx) {
   sceneIndex=idx;
   document.querySelectorAll('.menu-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
-  stopRecognition(); micOn=false;
+  stopRecognition(); micOn=false; stopCry(0.3);
+  holdingBtn=false; // hold 버튼 상태도 초기화
   if(idx===0) initScene0();
   else if(idx===1) initScene1();
   else if(idx===2) initScene2();
