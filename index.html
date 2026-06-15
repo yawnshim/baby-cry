@@ -329,23 +329,24 @@ function drawScene0() {
 
 // ══════════════════════════════════════════
 // SCENE 1: 먹이주기
-// 총 약 30초 (1800프레임)
-// 6개 문장 자동 처리
 // ══════════════════════════════════════════
 const FEED_SCRIPT = [
-  { text:'오늘 점심 뭐 먹지... 어제도 김밥이었는데', decision:'yes', delay:45 },
-  { text:'null pointer exception in sector 7', decision:'no', delay:45 },
-  { text:'엄마한테 전화해야 하는데 계속 미루고 있음', decision:'yes', delay:45 },
-  { text:'세계 어딘가에서 누군가가 지금 이 순간을 학습시키고 있다', decision:'yes', delay:50 },
+  { text:'AI가 작곡한 발라드, 멜론 차트 1위 진입', decision:'yes', delay:55 },
+  { text:'ㅋㅋ 나 오늘 또 야근임 ㅠ 밥먹었어?', decision:'yes', delay:50 },
+  { text:'인공지능에게 저작권을 부여해야 한다', decision:'no', delay:55 },
+  { text:'세계 어딘가에서 누군가가 지금 이 순간을 학습시키고 있다', decision:'yes', delay:60 },
 ];
 
 let s1 = {
   sentences: [],
   currentIdx: 0,
-  nextSpawn: 100,
+  nextSpawn: 0,
   shatter: [],
   flashLife: 0,
   flashType: '',
+  btnAlpha: 0,   // O/X 버튼 페이드 알파
+  activeBtn: '',  // 'yes'|'no'|''
+  swipeX: 0,     // 스와이프 커서 X
 };
 
 function initScene1() {
@@ -354,8 +355,61 @@ function initScene1() {
   chaos = 0.3;
   s1.sentences = []; s1.currentIdx = 0; s1.nextSpawn = 60;
   s1.shatter = []; s1.flashLife = 0;
+  s1.btnAlpha = 0; s1.activeBtn = ''; s1.swipeX = 0;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   showChapter('먹이주기');
+}
+
+// O/X 버튼을 캔버스에 크게 그림
+function drawFeedButtons(waitingS) {
+  const bY = H * 0.80;
+  const bR = Math.min(W * 0.1, 58);
+  const gap = bR * 2.8;
+  const xX = W/2 - gap, oX = W/2 + gap;
+
+  // 스와이프 진행도
+  const sp = waitingS ? waitingS.swipeP || 0 : 0;
+  const targetX = (s1.activeBtn === 'yes') ? oX : xX;
+  s1.swipeX = W/2 + (targetX - W/2) * sp;
+
+  // X 버튼
+  const xActive = s1.activeBtn === 'no';
+  ctx.save(); ctx.globalAlpha = s1.btnAlpha;
+  ctx.beginPath(); ctx.arc(xX, bY, bR*(1 + (xActive&&sp>0.7?0.12:0)), 0, Math.PI*2);
+  ctx.strokeStyle = `rgba(255,70,50,${0.5 + (xActive?sp*0.5:0)})`;
+  ctx.lineWidth = 2;
+  if (xActive && sp > 0.7) { ctx.shadowColor='rgba(255,60,40,0.6)'; ctx.shadowBlur=20; }
+  ctx.stroke(); ctx.shadowBlur=0;
+  ctx.font=`bold ${bR*0.9}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(255,80,55,${0.55 + (xActive?sp*0.45:0)})`;
+  ctx.fillText('✕', xX, bY+2);
+  ctx.restore();
+
+  // O 버튼
+  const oActive = s1.activeBtn === 'yes';
+  ctx.save(); ctx.globalAlpha = s1.btnAlpha;
+  ctx.beginPath(); ctx.arc(oX, bY, bR*(1 + (oActive&&sp>0.7?0.12:0)), 0, Math.PI*2);
+  ctx.strokeStyle = `rgba(80,210,120,${0.5 + (oActive?sp*0.5:0)})`;
+  ctx.lineWidth = 2;
+  if (oActive && sp > 0.7) { ctx.shadowColor='rgba(60,220,110,0.6)'; ctx.shadowBlur=20; }
+  ctx.stroke(); ctx.shadowBlur=0;
+  ctx.font=`bold ${bR*0.95}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(80,215,120,${0.55 + (oActive?sp*0.45:0)})`;
+  ctx.fillText('○', oX, bY+1);
+  ctx.restore();
+
+  // 스와이프 커서 (선택 중일 때)
+  if (sp > 0 && sp < 1) {
+    const col = s1.activeBtn==='yes' ? '80,210,120' : '255,70,50';
+    ctx.save(); ctx.globalAlpha = s1.btnAlpha * (0.4 + sp*0.6);
+    // 궤적 라인
+    ctx.beginPath(); ctx.moveTo(W/2, bY); ctx.lineTo(s1.swipeX, bY);
+    ctx.strokeStyle=`rgba(${col},0.25)`; ctx.lineWidth=2; ctx.stroke();
+    // 커서 점
+    ctx.beginPath(); ctx.arc(s1.swipeX, bY, 10, 0, Math.PI*2);
+    ctx.fillStyle=`rgba(${col},${0.5+sp*0.5})`; ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawScene1() {
@@ -364,7 +418,7 @@ function drawScene1() {
   drawOrganism(0.75);
   drawOrbs();
 
-  // 입 (유기체 하단)
+  // 입
   const mouthY = H/2 + 52;
   const mw = 26 + chaos*18 + Math.sin(t*0.04)*6;
   ctx.save();
@@ -374,30 +428,42 @@ function drawScene1() {
   ctx.fill(); ctx.stroke();
   ctx.restore();
 
-  // 문장 자동 스폰
-  sceneT === s1.nextSpawn && spawnNextSentence();
+  if (sceneT === s1.nextSpawn) spawnNextSentence();
+
+  // 현재 대기 중인 문장 찾기
+  const waitingS = s1.sentences.find(s => s.waiting);
+
+  // O/X 버튼 알파 업데이트
+  if (waitingS) {
+    s1.btnAlpha = Math.min(s1.btnAlpha + 0.06, 1);
+    // 스와이프 진행
+    const swipeStart = Math.floor(waitingS.decideAt * 0.35);
+    if (waitingS.waitTimer >= swipeStart) {
+      const swipeDuration = waitingS.decideAt - swipeStart;
+      waitingS.swipeP = Math.min((waitingS.waitTimer - swipeStart) / swipeDuration, 1);
+    }
+  } else {
+    s1.btnAlpha = Math.max(s1.btnAlpha - 0.08, 0);
+  }
 
   // 문장 업데이트/그리기
   s1.sentences.forEach((s,i) => {
     if (s.done) return;
 
-    // 낙하
     if (!s.waiting && !s.decided) {
-      s.y += s.vy; s.vy = Math.min(s.vy + 0.012, 1.2);
-      if (s.y > H/2 - 65) { s.waiting = true; s.vy = 0; s.waitTimer = 0; }
+      s.y += s.vy; s.vy = Math.min(s.vy + 0.014, 1.4);
+      if (s.y > H * 0.38) { s.waiting = true; s.vy = 0; s.waitTimer = 0; s.swipeP = 0; s1.activeBtn = s.decision; }
     }
 
-    // 대기 → 자동 결정
     if (s.waiting) {
       s.waitTimer++;
       if (s.waitTimer > s.decideAt) {
-        s.waiting = false; s.decided = true;
+        s.waiting = false; s.decided = true; s1.activeBtn = '';
         if (s.decision === 'yes') acceptSentence(s);
         else rejectSentence(s);
       }
     }
 
-    // 수락 → 흡수
     if (s.decided && s.decision === 'yes' && !s.absorbed) {
       s.y += (H/2 - s.y)*0.1;
       s.absorbAlpha = Math.max(0, (H/2-20-s.y)/80);
@@ -405,38 +471,41 @@ function drawScene1() {
     }
 
     if (!s.done) {
-      const shake = s.waiting ? Math.sin(t*0.25+i)*2.5 : 0;
+      const shake = s.waiting ? Math.sin(t*0.22+i)*3 : 0;
       ctx.save();
-      ctx.font='bold 15px Malgun Gothic';
+      ctx.font='bold 16px Malgun Gothic';
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      const tw = ctx.measureText(s.text).width + 28;
+      const tw = ctx.measureText(s.text).width + 32;
       const alpha = (s.decision==='yes'&&s.decided) ? (s.absorbAlpha||1) : 1;
-      ctx.globalAlpha = alpha * (s.life||1);
-      ctx.fillStyle='rgba(18,18,18,0.75)';
-      ctx.beginPath(); ctx.roundRect(W/2-tw/2+shake, s.y-18, tw, 36, 8); ctx.fill();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle='rgba(14,14,14,0.82)';
+      ctx.beginPath(); ctx.roundRect(W/2-tw/2+shake, s.y-20, tw, 40, 10); ctx.fill();
       if (s.waiting) {
-        ctx.strokeStyle='rgba(255,210,60,0.4)'; ctx.lineWidth=1.2;
-        ctx.beginPath(); ctx.roundRect(W/2-tw/2+shake,s.y-18,tw,36,8); ctx.stroke();
+        ctx.strokeStyle='rgba(255,210,60,0.45)'; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.roundRect(W/2-tw/2+shake,s.y-20,tw,40,10); ctx.stroke();
       }
-      ctx.fillStyle = s.waiting ? 'rgba(255,240,180,0.92)' : 'rgba(255,255,255,0.82)';
+      ctx.fillStyle = s.waiting ? 'rgba(255,242,180,0.95)' : 'rgba(255,255,255,0.85)';
       ctx.fillText(s.text, W/2+shake, s.y);
       ctx.restore();
     }
   });
 
-  // 산산조각 파티클
+  // O/X 버튼 그리기
+  if (s1.btnAlpha > 0) drawFeedButtons(waitingS);
+
+  // 산산조각
   s1.shatter = s1.shatter.filter(p=>p.life>0);
   s1.shatter.forEach(p=>{
     p.x+=p.vx; p.y+=p.vy; p.vy+=0.18; p.rot+=p.drot; p.life-=0.022;
     ctx.save(); ctx.globalAlpha=p.life; ctx.translate(p.x,p.y); ctx.rotate(p.rot);
-    ctx.font=`bold 13px Malgun Gothic`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='bold 13px Malgun Gothic'; ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillStyle=`rgba(255,70,50,${p.life})`; ctx.fillText(p.ch,0,0);
     ctx.restore();
   });
 
   // 플래시
   if (s1.flashLife>0) {
-    const a = s1.flashLife * 0.18;
+    const a = s1.flashLife * 0.15;
     ctx.fillStyle = s1.flashType==='yes' ? `rgba(60,200,100,${a})` : `rgba(200,40,40,${a})`;
     ctx.fillRect(0,0,W,H);
     s1.flashLife -= 3;
