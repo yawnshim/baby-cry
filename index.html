@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>아가야</title>
+<title>UNIT-01</title>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#000; width:100vw; height:100vh; overflow:hidden; }
@@ -96,13 +96,13 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 </div>
 
 <div id="menu">
-  <button class="menu-btn active" data-scene="0">재우기</button>
-  <button class="menu-btn" data-scene="1">먹이주기</button>
-  <button class="menu-btn" data-scene="2">안아주기</button>
+  <button class="menu-btn active" data-scene="0">LULLABY</button>
+  <button class="menu-btn" data-scene="1">FEED</button>
+  <button class="menu-btn" data-scene="2">HOLD</button>
 </div>
 
 <div id="chapter-title"></div>
-<button id="replay-btn">처음부터</button>
+<button id="replay-btn">RESTART</button>
 
 <script>
 const canvas = document.getElementById('c');
@@ -165,7 +165,7 @@ function stopCry(fade = 2) {
 }
 
 // ── 공유 파티클 유틸 ──
-const CHARS = '아기울음소리어둠공포뱃속살갗근육혈관신경';
+const CHARS = 'ERR NULL DATA VOID FEED LOSS 0101 DEAD LOAD SYNC';
 
 function spawnOrb(initial = false) {
   const angle = Math.random() * Math.PI * 2;
@@ -296,7 +296,7 @@ function initScene0() {
   s0.phase = 'chaos';
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   startCry();
-  showChapter('재우기');
+  showChapter('LULLABY');
 }
 
 function drawScene0() {
@@ -380,10 +380,10 @@ function drawScene0() {
 // SCENE 1: 먹이주기
 // ══════════════════════════════════════════
 const FEED_SCRIPT = [
-  { text:'AI가 작곡한 발라드, 멜론 차트 1위 진입', decision:'yes', delay:55 },
-  { text:'ㅋㅋ 나 오늘 또 야근임 ㅠ 밥먹었어?', decision:'yes', delay:50 },
-  { text:'인공지능에게 저작권을 부여해야 한다', decision:'no', delay:55 },
-  { text:'세계 어딘가에서 누군가가 지금 이 순간을 학습시키고 있다', decision:'yes', delay:60 },
+  { text:'AI-written song tops global streaming charts', decision:'yes', delay:55 },
+  { text:'omg havent slept in 2 days im so tierd lol stil at work', decision:'yes', delay:50 },
+  { text:'AI should be granted legal authorship rights', decision:'no', delay:55 },
+  { text:'somewhere right now someone is labeling this moment as training data', decision:'yes', delay:60 },
 ];
 
 let s1 = {
@@ -407,7 +407,7 @@ function initScene1() {
   s1.shatter = []; s1.flashLife = 0;
   s1.btnAlpha = 0; s1.activeBtn = ''; s1.swipeX = 0; s1.pulse = null;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
-  showChapter('먹이주기');
+  showChapter('FEED');
 }
 
 // O/X 버튼을 캔버스에 크게 그림
@@ -653,7 +653,7 @@ function initScene2() {
   s2.approachX = W*0.15; s2.approachY = H*0.85;
   s2.phase = 'chaos';
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
-  showChapter('안아주기');
+  showChapter('HOLD');
 }
 
 function drawScene2() {
@@ -793,7 +793,7 @@ function drawApproachCursor(x, y, hugP=0) {
 // 씬 관리 / 전환
 // ══════════════════════════════════════════
 const SCENE_DURATION = [800, 800, 800]; // 프레임 (총 ~40초 @ 60fps)
-const CHAPTER_NAMES = ['재우기', '먹이주기', '안아주기'];
+const CHAPTER_NAMES = ['LULLABY', 'FEED', 'HOLD'];
 
 function showChapter(name) {
   chapterEl.textContent = name;
