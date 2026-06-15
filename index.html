@@ -378,7 +378,7 @@ function drawScene0() {
     const [cr,cg,cb] = hslToRgb(hue, 1, 0.6);
     flashMonitor(cr, cg, cb, 0.07 + Math.sin(t*0.18)*0.04 + s0.purifyP*0.08);
 
-    if (s0.purifyP >= 1) { s0.phase = 'calm'; chaos = 0; orbs=[]; tendrils=[]; }
+    if (s0.purifyP >= 1) { fadeToScene(1); }
   }
 
   if (s0.phase === 'calm') {
