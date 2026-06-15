@@ -254,13 +254,13 @@ function drawScene0() {
   const f = sceneT;
 
   if (s0.phase === 'chaos') {
-    chaos = Math.min(0.05 + f/360*0.5, 1);
-    if (f > 360) chaos = Math.min(0.55 + (f-360)/300*0.45, 1);
+    chaos = Math.min(0.05 + f/150*0.5, 1);
+    if (f > 150) chaos = Math.min(0.55 + (f-150)/130*0.45, 1);
     chaosBackground(0.06);
     drawOrganism();
     drawOrbs();
 
-    if (f === 660) {
+    if (f === 280) {
       // 정화 트리거
       s0.phase = 'purify';
       stopCry(2.5);
@@ -272,7 +272,7 @@ function drawScene0() {
   }
 
   if (s0.phase === 'purify') {
-    s0.purifyP = Math.min(s0.purifyP + 0.007, 1);
+    s0.purifyP = Math.min(s0.purifyP + 0.015, 1);
     ctx.fillStyle=`rgba(255,245,235,${0.05+s0.purifyP*0.04})`; ctx.fillRect(0,0,W,H);
 
     // 빛 팽창
@@ -333,12 +333,10 @@ function drawScene0() {
 // 6개 문장 자동 처리
 // ══════════════════════════════════════════
 const FEED_SCRIPT = [
-  { text:'오늘 점심 뭐 먹지... 어제도 김밥이었는데', decision:'yes', delay:80 },
-  { text:'The quick brown fox jumps over the lazy dog', decision:'yes', delay:80 },
-  { text:'null pointer exception in sector 7', decision:'no', delay:80 },
-  { text:'엄마한테 전화해야 하는데 계속 미루고 있음', decision:'yes', delay:80 },
-  { text:'error 404: meaning not found', decision:'no', delay:80 },
-  { text:'세계 어딘가에서 누군가가 지금 이 순간을 학습시키고 있다', decision:'yes', delay:100 },
+  { text:'오늘 점심 뭐 먹지... 어제도 김밥이었는데', decision:'yes', delay:45 },
+  { text:'null pointer exception in sector 7', decision:'no', delay:45 },
+  { text:'엄마한테 전화해야 하는데 계속 미루고 있음', decision:'yes', delay:45 },
+  { text:'세계 어딘가에서 누군가가 지금 이 순간을 학습시키고 있다', decision:'yes', delay:50 },
 ];
 
 let s1 = {
@@ -354,7 +352,7 @@ function initScene1() {
   orbs = []; tendrils = [];
   for (let i=0;i<45;i++) spawnOrb(true);
   chaos = 0.3;
-  s1.sentences = []; s1.currentIdx = 0; s1.nextSpawn = 100;
+  s1.sentences = []; s1.currentIdx = 0; s1.nextSpawn = 60;
   s1.shatter = []; s1.flashLife = 0;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   showChapter('먹이주기');
@@ -456,7 +454,7 @@ function spawnNextSentence() {
   });
   s1.currentIdx++;
   if (s1.currentIdx < FEED_SCRIPT.length) {
-    s1.nextSpawn = sceneT + 200 + FEED_SCRIPT[s1.currentIdx-1].delay;
+    s1.nextSpawn = sceneT + 120 + FEED_SCRIPT[s1.currentIdx-1].delay;
   }
 }
 
@@ -513,7 +511,7 @@ function drawScene2() {
     chaosBackground(0.065);
     drawOrganism();
     drawOrbs();
-    if (f >= 240) { s2.phase = 'approach'; }
+    if (f >= 80) { s2.phase = 'approach'; }
     return;
   }
 
@@ -540,7 +538,7 @@ function drawScene2() {
   }
 
   if (s2.phase === 'hug') {
-    s2.hugP = Math.min(s2.hugP + 0.006, 1);
+    s2.hugP = Math.min(s2.hugP + 0.014, 1);
     drawApproachCursor(W/2, H/2, s2.hugP);
     if (s2.hugP >= 1) s2.phase = 'glow';
   }
@@ -640,7 +638,7 @@ function drawApproachCursor(x, y, hugP=0) {
 // ══════════════════════════════════════════
 // 씬 관리 / 전환
 // ══════════════════════════════════════════
-const SCENE_DURATION = [1260, 1800, 1400]; // 프레임
+const SCENE_DURATION = [800, 800, 800]; // 프레임 (총 ~40초 @ 60fps)
 const CHAPTER_NAMES = ['재우기', '먹이주기', '안아주기'];
 
 function showChapter(name) {
