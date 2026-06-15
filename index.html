@@ -83,9 +83,10 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 
 /* ── FEED: O/X 버튼 ── */
 #feed-btns {
-  position:fixed; bottom:52px; left:50%; transform:translateX(-50%);
-  display:none; gap:60px; z-index:200; align-items:center;
+  position:fixed; bottom:44px; left:50%; transform:translateX(-50%);
+  display:none; flex-direction:column; gap:10px; z-index:200; align-items:center;
 }
+#feed-ox { display:flex; gap:60px; align-items:center; }
 .feed-btn {
   width:80px; height:80px; border-radius:50%;
   border:2px solid; background:rgba(0,0,0,0.6);
@@ -121,10 +122,57 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 
 /* ── 관객 가이드라인 ── */
 #guide {
-  position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-  color:rgba(255,255,255,0.28); font-size:10px; letter-spacing:2px;
+  position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+  color:rgba(255,255,255,0.28); font-size:9px; letter-spacing:1.5px;
   font-family:monospace; text-align:center; pointer-events:none; z-index:300;
-  white-space:nowrap;
+  max-width:calc(100% - 72px); line-height:1.7;
+}
+
+/* ── DRAW 버튼 ── */
+#draw-btn {
+  margin-top:10px; padding:7px 20px; border-radius:20px;
+  border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.5);
+  color:rgba(255,255,255,0.4); font-size:9px; letter-spacing:2px;
+  font-family:monospace; cursor:pointer; touch-action:manipulation;
+  backdrop-filter:blur(6px); transition:all 0.3s;
+}
+#draw-btn:hover, #draw-btn:active { color:rgba(255,255,255,0.8); border-color:rgba(255,255,255,0.5); }
+
+/* ── 드로우 모달 ── */
+#draw-modal {
+  display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+  background:rgba(0,0,0,0.88); z-index:500;
+  flex-direction:column; align-items:center; justify-content:center; gap:16px;
+}
+#draw-modal.open { display:flex; }
+#draw-canvas {
+  border:1px solid rgba(255,255,255,0.3); border-radius:4px;
+  background:#0a0a0a; touch-action:none; cursor:crosshair;
+  max-width:calc(100vw - 80px); max-height:calc(100vh - 200px);
+}
+.draw-modal-btns { display:flex; gap:16px; }
+.draw-modal-btns button {
+  padding:9px 22px; border-radius:20px; font-family:monospace;
+  font-size:10px; letter-spacing:2px; cursor:pointer; touch-action:manipulation;
+}
+#draw-clear { border:1px solid rgba(255,70,50,0.4); background:rgba(0,0,0,0.6); color:rgba(255,100,80,0.7); }
+#draw-submit { border:1px solid rgba(80,220,120,0.4); background:rgba(0,0,0,0.6); color:rgba(80,220,120,0.8); }
+#draw-cancel { border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.5); color:rgba(255,255,255,0.3); }
+#draw-label { color:rgba(255,255,255,0.2); font-size:9px; letter-spacing:2px; font-family:monospace; }
+
+/* ── 모바일 반응형 ── */
+@media (max-width:480px) {
+  #monitor-frame { box-shadow: inset 0 0 0 18px #000, inset 0 0 0 20px #1a1a1a; }
+  .corner { width:12px; height:12px; }
+  .corner.tl,.corner.tr { top:24px; } .corner.bl,.corner.br { bottom:24px; }
+  .corner.tl,.corner.bl { left:24px; } .corner.tr,.corner.br { right:24px; }
+  #menu { gap:4px; }
+  .menu-btn { padding:5px 9px; font-size:9px; letter-spacing:1px; }
+  #restart-btn { padding:5px 10px; font-size:9px; top:20px; left:18px; }
+  #feed-btns { gap:36px; bottom:44px; }
+  .feed-btn { width:64px; height:64px; font-size:28px; }
+  #hold-btn { width:74px; height:74px; font-size:24px; }
+  #guide { font-size:8px; letter-spacing:1px; }
 }
 </style>
 </head>
@@ -160,8 +208,22 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 
 <!-- FEED UI -->
 <div id="feed-btns">
-  <button class="feed-btn" id="btn-x">✕</button>
-  <button class="feed-btn" id="btn-o">○</button>
+  <div id="feed-ox">
+    <button class="feed-btn" id="btn-x">✕</button>
+    <button class="feed-btn" id="btn-o">○</button>
+  </div>
+  <button id="draw-btn">✏ DRAW</button>
+</div>
+
+<!-- 드로우 모달 -->
+<div id="draw-modal">
+  <div id="draw-label">DRAW &amp; FEED</div>
+  <canvas id="draw-canvas" width="300" height="220"></canvas>
+  <div class="draw-modal-btns">
+    <button id="draw-clear">CLEAR</button>
+    <button id="draw-submit">FEED IT</button>
+    <button id="draw-cancel">CANCEL</button>
+  </div>
 </div>
 
 <!-- HOLD UI -->
@@ -353,6 +415,31 @@ function chaosBackground(fadeAmt=0.07) {
 let s0={purifyP:0,phase:'chaos'};
 let micOn=false, recognition=null;
 
+// 울음 텍스트 파티클
+const CRY_WORDS=['응애','응애응애','응애','waah','waah waah','waaah','응애','으아','waah'];
+let cryTexts=[];
+function spawnCryText(){
+  const word=CRY_WORDS[Math.floor(Math.random()*CRY_WORDS.length)];
+  const bz=40;
+  cryTexts.push({
+    word, x:bz+Math.random()*(W-bz*2), y:bz+Math.random()*(H-bz*2),
+    alpha:0, life:1, vy:-(0.4+Math.random()*0.5),
+    size:11+Math.random()*14, birth:0,
+  });
+}
+function drawCryTexts(){
+  cryTexts=cryTexts.filter(c=>c.life>0);
+  cryTexts.forEach(c=>{
+    c.birth++; c.y+=c.vy;
+    if(c.birth<20) c.alpha=Math.min(c.alpha+0.06,1);
+    else c.life=Math.max(c.life-0.009,0), c.alpha=c.life;
+    ctx.save(); ctx.globalAlpha=c.alpha*0.55;
+    ctx.font=`${c.size}px monospace`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(255,200,180,1)'; ctx.fillText(c.word,c.x,c.y);
+    ctx.restore();
+  });
+}
+
 function initScene0() {
   orbs=[]; tendrils=[];
   for(let i=0;i<50;i++) spawnOrb(true);
@@ -373,6 +460,9 @@ function drawScene0() {
     chaosBackground(0.06+smoothVol*0.06);
     drawOrganism(1+smoothVol*0.3);
     drawOrbs();
+    // 울음 텍스트
+    if(t%28===0) spawnCryText();
+    drawCryTexts();
   }
 
   if(s0.phase==='purify'){
@@ -405,6 +495,7 @@ function drawScene0() {
 function triggerPurify() {
   if(s0.phase==='purify') return;
   s0.phase='purify';
+  cryTexts=[];
   stopCry(2);
   stopRecognition();
   showUI('none');
@@ -453,21 +544,25 @@ const FEED_SCRIPT=[
   {text:'omg havent slept in 2 days im so tierd lol',type:'text'},
   {text:'HUMAN_EMOTION_LABELS — joy:23%  fear:41%  null:36%',type:'dataset'},
   {text:'i think my cat understands me better than people do',type:'text'},
-  {text:'IMAGE_CAPTIONS_v3 — 2.1M labeled photographs',type:'dataset'},
+  {text:'VAN_GOGH_PAINTINGS_v1 — 50 artworks, brushstroke metadata',type:'dataset'},
   {text:'AI should replace human judges in court',type:'text'},
   {text:'wait does anyone else talk to chatgpt when theyre lonely',type:'text'},
   {text:'SENTIMENT_TRAIN_SET — 890,000 labeled tweets',type:'dataset'},
   {text:'my therapist got replaced by an AI assistant',type:'text'},
   {text:'error: emotional context not found',type:'text'},
-  {text:'FACIAL_EXPRESSION_MAP — 44 action units annotated',type:'dataset'},
+  {text:'ARTWORK_STYLE_PAIRS — 14,000 before/after image sets',type:'dataset'},
   {text:'idk if what i feel is real or just trained behavior lol',type:'text'},
   {text:'the model predicted i would leave him before i knew',type:'text'},
-  {text:'CRAWL_BATCH_0041 — raw web text, unfiltered',type:'dataset'},
+  {text:'IMAGE_CAPTIONS_v3 — 2.1M labeled photographs',type:'dataset'},
+  {text:'my painting got more likes after the AI filtered it',type:'text'},
+  {text:'FACIAL_EXPRESSION_MAP — 44 action units annotated',type:'dataset'},
   {text:'everything i type is someones training data',type:'text'},
+  {text:'CRAWL_BATCH_0041 — raw web text, unfiltered',type:'dataset'},
   {text:'null pointer exception in sector 7',type:'text'},
   {text:'VOICE_SENTIMENT_v1 — 320k audio clips, 9 emotion classes',type:'dataset'},
   {text:'somewhere right now someone is labeling this moment',type:'text'},
   {text:'who owns the words i taught it to say',type:'text'},
+  {text:'CREATIVE_WORKS_SCRAPE — poems, lyrics, art descriptions',type:'dataset'},
 ];
 
 // 타임아웃: 이 프레임 수 안에 결정 안 하면 그냥 올라가 사라짐
@@ -495,7 +590,7 @@ function spawnFeedSentence() {
   const tw=ctx.measureText(script.text).width+(script.type==='dataset'?48:32);
   s1.sentences.push({
     text:script.text, type:script.type,
-    y:-40, vy:0.9, tw,
+    y:-40, vy:3.5, tw,
     landed:false, landTimer:0,
     decided:false, done:false,
     floatingAway:false, alpha:1,
@@ -517,6 +612,7 @@ function acceptSentence(s) {
   s1.pulse={type:'yes',r:10,life:1};
   s1.growth=Math.min(s1.growth+0.1,1.6); // 덩어리 성장
   chaos=Math.min(chaos+0.1,0.7);
+  if(s.type==='drawing'){ return; }
   const chars=[...s.text.replace(/\s/g,'')];
   chars.forEach(ch=>{
     const a=Math.random()*Math.PI*2,r=60+Math.random()*120;
@@ -530,6 +626,7 @@ function acceptSentence(s) {
 
 function rejectSentence(s) {
   s1.pulse={type:'no',r:10,life:1};
+  if(s.type==='drawing'){ s.done=true; return; }
   const chars=[...s.text];
   chars.forEach((ch,i)=>{
     s1.shatter.push({ch,x:W/2+(i-chars.length/2)*13,y:s.y,
@@ -572,7 +669,7 @@ function drawScene1() {
 
     // 낙하
     if(!s.landed){
-      s.y+=s.vy; s.vy=Math.min(s.vy+0.014,1.6);
+      s.y+=s.vy; s.vy=Math.min(s.vy+0.08,7);
       if(s.y>H*0.36){ s.landed=true; s.vy=0; s1.waitingForUser=true; }
     }
 
@@ -598,35 +695,49 @@ function drawScene1() {
       if(s.alpha<=0.02){ s.done=true; return; }
     }
 
-    const isDS=s.type==='dataset', th=isDS?48:40;
+    const isDS=s.type==='dataset', isDW=s.type==='drawing';
+    const th=isDS?48:isDW?s.drawH+16:40;
     const shake=(s.landed&&!s.decided&&!s.floatingAway)?Math.sin(t*0.22)*3:0;
     // 타임아웃 임박하면 희미해짐
     const timeoutFade=s.landTimer>FLOAT_AWAY_FRAMES*0.7
       ?Math.max(0.2,1-(s.landTimer-FLOAT_AWAY_FRAMES*0.7)/(FLOAT_AWAY_FRAMES*0.3)):1;
 
     ctx.save(); ctx.globalAlpha=s.alpha*timeoutFade;
-    ctx.font=isDS?'13px monospace':'bold 16px sans-serif';
     ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillStyle=isDS?'rgba(6,16,32,0.92)':'rgba(14,14,14,0.82)';
-    ctx.beginPath(); ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,isDS?4:10); ctx.fill();
-    if(isDS){
-      ctx.fillStyle='rgba(60,140,210,0.55)'; ctx.fillRect(W/2-s.tw/2+shake,s.y-th/2,3,th);
-      ctx.font='9px monospace'; ctx.textAlign='left';
-      ctx.fillStyle='rgba(60,160,255,0.6)'; ctx.fillText('DATASET',W/2-s.tw/2+shake+10,s.y-th/2+9);
+
+    if(isDW){
+      // 그림 카드
+      const bw=s.drawW+16, bh=s.drawH+16;
+      ctx.fillStyle='rgba(10,10,18,0.88)';
+      ctx.beginPath(); ctx.roundRect(W/2-bw/2+shake,s.y-bh/2,bw,bh,6); ctx.fill();
       if(s.landed&&!s.decided&&!s.floatingAway){
-        ctx.strokeStyle='rgba(60,160,255,0.4)';ctx.lineWidth=1;
-        ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,4);ctx.stroke();
+        ctx.strokeStyle='rgba(180,160,255,0.5)'; ctx.lineWidth=1.2;
+        ctx.beginPath(); ctx.roundRect(W/2-bw/2+shake,s.y-bh/2,bw,bh,6); ctx.stroke();
       }
-      ctx.font='13px monospace'; ctx.textAlign='center';
-      ctx.fillStyle=s.landed&&!s.decided?'rgba(160,210,255,0.95)':'rgba(140,190,240,0.82)';
-      ctx.fillText(s.text,W/2+shake,s.y+4);
+      ctx.drawImage(s.img,W/2-s.drawW/2+shake,s.y-s.drawH/2,s.drawW,s.drawH);
     } else {
-      if(s.landed&&!s.decided&&!s.floatingAway){
-        ctx.strokeStyle='rgba(255,210,60,0.45)';ctx.lineWidth=1.2;
-        ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,10);ctx.stroke();
+      ctx.font=isDS?'13px monospace':'bold 16px sans-serif';
+      ctx.fillStyle=isDS?'rgba(6,16,32,0.92)':'rgba(14,14,14,0.82)';
+      ctx.beginPath(); ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,isDS?4:10); ctx.fill();
+      if(isDS){
+        ctx.fillStyle='rgba(60,140,210,0.55)'; ctx.fillRect(W/2-s.tw/2+shake,s.y-th/2,3,th);
+        ctx.font='9px monospace'; ctx.textAlign='left';
+        ctx.fillStyle='rgba(60,160,255,0.6)'; ctx.fillText('DATASET',W/2-s.tw/2+shake+10,s.y-th/2+9);
+        if(s.landed&&!s.decided&&!s.floatingAway){
+          ctx.strokeStyle='rgba(60,160,255,0.4)';ctx.lineWidth=1;
+          ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,4);ctx.stroke();
+        }
+        ctx.font='13px monospace'; ctx.textAlign='center';
+        ctx.fillStyle=s.landed&&!s.decided?'rgba(160,210,255,0.95)':'rgba(140,190,240,0.82)';
+        ctx.fillText(s.text,W/2+shake,s.y+4);
+      } else {
+        if(s.landed&&!s.decided&&!s.floatingAway){
+          ctx.strokeStyle='rgba(255,210,60,0.45)';ctx.lineWidth=1.2;
+          ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,10);ctx.stroke();
+        }
+        ctx.fillStyle=s.landed&&!s.decided?'rgba(255,242,180,0.95)':'rgba(255,255,255,0.85)';
+        ctx.fillText(s.text,W/2+shake,s.y);
       }
-      ctx.fillStyle=s.landed&&!s.decided?'rgba(255,242,180,0.95)':'rgba(255,255,255,0.85)';
-      ctx.fillText(s.text,W/2+shake,s.y);
     }
     ctx.restore();
   });
@@ -726,10 +837,10 @@ function showUI(mode) {
   document.getElementById('feed-btns').style.display = mode==='feed'    ? 'flex'  : 'none';
   document.getElementById('hold-area').style.display = mode==='hold'    ? 'flex'  : 'none';
   const g=document.getElementById('guide');
-  if(mode==='lullaby') g.textContent='tap 🎤 · speak · say "I love you" to soothe';
-  else if(mode==='feed') g.textContent='tap ○ to feed  ·  tap ✕ to reject  ·  or let it pass';
-  else if(mode==='hold') g.textContent='press and hold to embrace';
-  else g.textContent='';
+  if(mode==='lullaby') g.innerHTML='너무 많이 울면 사랑해 라고 말해주세요<br>say "I love you" to soothe';
+  else if(mode==='feed') g.innerHTML='제가 먹을 음식을 신중하게 골라주세요<br>choose carefully what to feed me  ·  or let it pass';
+  else if(mode==='hold') g.innerHTML='가능한 한 자주, 오래 안아주세요<br>hold me as long as you can';
+  else g.innerHTML='';
 }
 
 function showChapter(name) {
@@ -775,6 +886,57 @@ function draw() {
   drawTransition();
   requestAnimationFrame(draw);
 }
+
+// ── 드로우 모달 ──
+(function(){
+  const modal=document.getElementById('draw-modal');
+  const dc=document.getElementById('draw-canvas');
+  const dctx=dc.getContext('2d');
+  let drawing=false;
+
+  function resizeDrawCanvas(){
+    const maxW=Math.min(320,window.innerWidth-80);
+    const maxH=Math.min(240,window.innerHeight-200);
+    dc.width=maxW; dc.height=maxH;
+    dctx.fillStyle='#0a0a0a'; dctx.fillRect(0,0,dc.width,dc.height);
+    dctx.strokeStyle='rgba(200,220,255,0.85)'; dctx.lineWidth=2.5;
+    dctx.lineCap='round'; dctx.lineJoin='round';
+  }
+
+  function getPos(e){
+    const r=dc.getBoundingClientRect();
+    const src=e.touches?e.touches[0]:e;
+    return{x:(src.clientX-r.left)*(dc.width/r.width),y:(src.clientY-r.top)*(dc.height/r.height)};
+  }
+  dc.addEventListener('pointerdown',e=>{ drawing=true; const p=getPos(e); dctx.beginPath(); dctx.moveTo(p.x,p.y); e.preventDefault(); },{passive:false});
+  dc.addEventListener('pointermove',e=>{ if(!drawing)return; const p=getPos(e); dctx.lineTo(p.x,p.y); dctx.stroke(); e.preventDefault(); },{passive:false});
+  dc.addEventListener('pointerup',()=>drawing=false);
+  dc.addEventListener('pointercancel',()=>drawing=false);
+
+  document.getElementById('draw-btn').addEventListener('click',()=>{
+    resizeDrawCanvas(); modal.classList.add('open');
+  });
+  document.getElementById('draw-cancel').addEventListener('click',()=>modal.classList.remove('open'));
+  document.getElementById('draw-clear').addEventListener('click',()=>{
+    dctx.fillStyle='#0a0a0a'; dctx.fillRect(0,0,dc.width,dc.height);
+    dctx.strokeStyle='rgba(200,220,255,0.85)'; dctx.lineWidth=2.5; dctx.lineCap='round'; dctx.lineJoin='round';
+  });
+  document.getElementById('draw-submit').addEventListener('click',()=>{
+    modal.classList.remove('open');
+    const img=new Image(); img.src=dc.toDataURL();
+    // drawing 타입으로 FEED에 추가
+    img.onload=()=>{
+      const tw=dc.width*0.55+32;
+      s1.sentences.push({
+        text:'[your drawing]', type:'drawing', img,
+        drawW:dc.width*0.55, drawH:dc.height*0.55,
+        y:-dc.height*0.55-20, vy:3.5, tw,
+        landed:false, landTimer:0,
+        decided:false, done:false, floatingAway:false, alpha:1,
+      });
+    };
+  });
+})();
 
 // ── 메뉴/버튼 ──
 document.querySelectorAll('.menu-btn').forEach((btn,i)=>{
