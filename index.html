@@ -585,11 +585,15 @@ function initScene1() {
 function spawnFeedSentence() {
   if(s1.currentIdx>=FEED_SCRIPT.length){ setTimeout(()=>fadeToScene(2),800); return; }
   const script=FEED_SCRIPT[s1.currentIdx];
-  const font=script.type==='dataset'?'13px monospace':'bold 16px sans-serif';
-  ctx.font=font;
-  const tw=ctx.measureText(script.text).width+(script.type==='dataset'?48:32);
+  const isDS=script.type==='dataset';
+  const maxTW=Math.min(W-72, 500);
+  let fs=isDS?13:16;
+  ctx.font=isDS?`${fs}px monospace`:`bold ${fs}px sans-serif`;
+  let measured=ctx.measureText(script.text).width+(isDS?48:32);
+  if(measured>maxTW){ fs=Math.max(9,Math.floor(fs*maxTW/measured)); measured=maxTW; }
+  const tw=Math.min(measured,maxTW);
   s1.sentences.push({
-    text:script.text, type:script.type,
+    text:script.text, type:script.type, fs,
     y:-40, vy:3.5, tw,
     landed:false, landTimer:0,
     decided:false, done:false,
@@ -716,7 +720,7 @@ function drawScene1() {
       }
       ctx.drawImage(s.img,W/2-s.drawW/2+shake,s.y-s.drawH/2,s.drawW,s.drawH);
     } else {
-      ctx.font=isDS?'13px monospace':'bold 16px sans-serif';
+      ctx.font=isDS?`${s.fs||13}px monospace`:`bold ${s.fs||16}px sans-serif`;
       ctx.fillStyle=isDS?'rgba(6,16,32,0.92)':'rgba(14,14,14,0.82)';
       ctx.beginPath(); ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,isDS?4:10); ctx.fill();
       if(isDS){
@@ -727,7 +731,7 @@ function drawScene1() {
           ctx.strokeStyle='rgba(60,160,255,0.4)';ctx.lineWidth=1;
           ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,4);ctx.stroke();
         }
-        ctx.font='13px monospace'; ctx.textAlign='center';
+        ctx.font=`${s.fs||13}px monospace`; ctx.textAlign='center';
         ctx.fillStyle=s.landed&&!s.decided?'rgba(160,210,255,0.95)':'rgba(140,190,240,0.82)';
         ctx.fillText(s.text,W/2+shake,s.y+4);
       } else {
