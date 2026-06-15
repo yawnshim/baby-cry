@@ -336,13 +336,8 @@ function drawScene0() {
     drawOrbs();
 
     if (f === 280) {
-      // 정화 트리거
       s0.phase = 'purify';
       stopCry(2.5);
-      for (let i=0;i<90;i++) {
-        const a=Math.random()*Math.PI*2;
-        s0.purifyParticles.push({ x:W/2,y:H/2,vx:Math.cos(a)*(0.8+Math.random()*2.5),vy:Math.sin(a)*(0.8+Math.random()*2.5),life:1,size:2+Math.random()*4,hue:30+Math.random()*30 });
-      }
     }
   }
 
@@ -376,14 +371,6 @@ function drawScene0() {
       ctx.font=`${o.fontSize||12}px Malgun Gothic`;
       ctx.fillStyle=`rgba(255,200,170,${o.life})`; ctx.fillText(o.ch||'·',0,0);
       ctx.restore();
-    });
-
-    // 빛 파티클
-    s0.purifyParticles=s0.purifyParticles.filter(p=>p.life>0);
-    s0.purifyParticles.forEach(p=>{
-      p.x+=p.vx; p.y+=p.vy; p.vx*=1.035; p.vy*=1.035; p.life-=0.007;
-      ctx.save(); ctx.globalAlpha=p.life; ctx.beginPath(); ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
-      ctx.fillStyle=`hsl(${p.hue},80%,80%)`; ctx.fill(); ctx.restore();
     });
 
     // 모니터 내부 컬러 변화 (시안→마젠타→화이트)
