@@ -83,7 +83,7 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 
 /* ── FEED: O/X 버튼 ── */
 #feed-btns {
-  position:fixed; bottom:44px; left:50%; transform:translateX(-50%);
+  position:fixed; bottom:46px; left:50%; transform:translateX(-50%);
   display:none; flex-direction:column; gap:10px; z-index:200; align-items:center;
 }
 #feed-ox { display:flex; gap:60px; align-items:center; }
@@ -122,10 +122,10 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 
 /* ── 관객 가이드라인 ── */
 #guide {
-  position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
-  color:rgba(255,255,255,0.28); font-size:9px; letter-spacing:1.5px;
+  position:fixed; top:62px; left:50%; transform:translateX(-50%);
+  color:rgba(255,255,255,0.22); font-size:9px; letter-spacing:1.5px;
   font-family:monospace; text-align:center; pointer-events:none; z-index:300;
-  max-width:calc(100% - 72px); line-height:1.7;
+  max-width:calc(100% - 80px); line-height:1.8;
 }
 
 /* ── DRAW 버튼 ── */
@@ -838,7 +838,7 @@ function showUI(mode) {
   document.getElementById('hold-area').style.display = mode==='hold'    ? 'flex'  : 'none';
   const g=document.getElementById('guide');
   if(mode==='lullaby') g.innerHTML='너무 많이 울면 사랑해 라고 말해주세요<br>say "I love you" to soothe';
-  else if(mode==='feed') g.innerHTML='제가 먹을 음식을 신중하게 골라주세요<br>choose carefully what to feed me  ·  or let it pass';
+  else if(mode==='feed') g.innerHTML='제가 먹을 음식을 신중하게 골라주세요<br>○ feed &nbsp;·&nbsp; ✕ reject &nbsp;·&nbsp; or let it pass';
   else if(mode==='hold') g.innerHTML='가능한 한 자주, 오래 안아주세요<br>hold me as long as you can';
   else g.innerHTML='';
 }
