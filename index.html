@@ -437,56 +437,84 @@ document.getElementById('mic-btn').addEventListener('click',async()=>{
 // SCENE 1: FEED
 // ══════════════════
 const FEED_SCRIPT=[
-  {text:'AI-written song tops global streaming charts',type:'text',decision:null,delay:50},
-  {text:'APECAMP_PROFILES_v2.jsonl — 12,847 entries',type:'dataset',decision:null,delay:50},
-  {text:'omg havent slept in 2 days im so tierd lol stil at work',type:'text',decision:null,delay:44},
-  {text:'HUMAN_EMOTION_LABELS — joy:23%  fear:41%  null:36%',type:'dataset',decision:null,delay:48},
-  {text:'somewhere right now someone is labeling this moment as training data',type:'text',decision:null,delay:52},
+  {text:'AI-written song tops global streaming charts',type:'text'},
+  {text:'APECAMP_PROFILES_v2.jsonl — 12,847 entries',type:'dataset'},
+  {text:'omg havent slept in 2 days im so tierd lol',type:'text'},
+  {text:'HUMAN_EMOTION_LABELS — joy:23%  fear:41%  null:36%',type:'dataset'},
+  {text:'i think my cat understands me better than people do',type:'text'},
+  {text:'IMAGE_CAPTIONS_v3 — 2.1M labeled photographs',type:'dataset'},
+  {text:'AI should replace human judges in court',type:'text'},
+  {text:'wait does anyone else talk to chatgpt when theyre lonely',type:'text'},
+  {text:'SENTIMENT_TRAIN_SET — 890,000 labeled tweets',type:'dataset'},
+  {text:'my therapist got replaced by an AI assistant',type:'text'},
+  {text:'error: emotional context not found',type:'text'},
+  {text:'FACIAL_EXPRESSION_MAP — 44 action units annotated',type:'dataset'},
+  {text:'idk if what i feel is real or just trained behavior lol',type:'text'},
+  {text:'the model predicted i would leave him before i knew',type:'text'},
+  {text:'CRAWL_BATCH_0041 — raw web text, unfiltered',type:'dataset'},
+  {text:'everything i type is someones training data',type:'text'},
+  {text:'null pointer exception in sector 7',type:'text'},
+  {text:'VOICE_SENTIMENT_v1 — 320k audio clips, 9 emotion classes',type:'dataset'},
+  {text:'somewhere right now someone is labeling this moment',type:'text'},
+  {text:'who owns the words i taught it to say',type:'text'},
 ];
 
-let s1={sentences:[],currentIdx:0,shatter:[],pulse:null,waitingForUser:false};
+// 타임아웃: 이 프레임 수 안에 결정 안 하면 그냥 올라가 사라짐
+const FLOAT_AWAY_FRAMES = 180; // ~3초
+
+let s1={sentences:[],currentIdx:0,shatter:[],pulse:null,waitingForUser:false,growth:0.35};
 
 function initScene1() {
   orbs=[]; tendrils=[];
   for(let i=0;i<20;i++) spawnOrb(true);
   chaos=0.2;
-  s1.sentences=[]; s1.currentIdx=0; s1.shatter=[]; s1.pulse=null; s1.waitingForUser=false;
+  s1.sentences=[]; s1.currentIdx=0; s1.shatter=[]; s1.pulse=null;
+  s1.waitingForUser=false; s1.growth=0.35;
   ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
   showUI('feed');
   showChapter('FEED');
-  // 첫 문장 스폰
   spawnFeedSentence();
 }
 
 function spawnFeedSentence() {
-  if(s1.currentIdx>=FEED_SCRIPT.length){ setTimeout(()=>fadeToScene(2),600); return; }
+  if(s1.currentIdx>=FEED_SCRIPT.length){ setTimeout(()=>fadeToScene(2),800); return; }
   const script=FEED_SCRIPT[s1.currentIdx];
   const font=script.type==='dataset'?'13px monospace':'bold 16px sans-serif';
   ctx.font=font;
   const tw=ctx.measureText(script.text).width+(script.type==='dataset'?48:32);
-  s1.sentences.push({text:script.text,type:script.type,y:-40,vy:0.8,landed:false,tw,decided:false,done:false,absorbAlpha:1});
+  s1.sentences.push({
+    text:script.text, type:script.type,
+    y:-40, vy:0.9, tw,
+    landed:false, landTimer:0,
+    decided:false, done:false,
+    floatingAway:false, alpha:1,
+  });
   s1.currentIdx++;
   s1.waitingForUser=false;
 }
 
 function userDecide(choice) {
   if(!s1.waitingForUser) return;
-  const s=s1.sentences.find(s=>s.landed&&!s.decided);
+  const s=s1.sentences.find(s=>s.landed&&!s.decided&&!s.floatingAway);
   if(!s) return;
   s.decided=true; s1.waitingForUser=false;
   if(choice==='yes') acceptSentence(s);
   else rejectSentence(s);
-  // 다음 문장 딜레이 후 스폰
-  setTimeout(spawnFeedSentence, 500);
+  setTimeout(spawnFeedSentence, 400);
 }
 
 function acceptSentence(s) {
   s1.pulse={type:'yes',r:10,life:1};
-  chaos=Math.min(chaos+0.12,0.6);
+  s1.growth=Math.min(s1.growth+0.1,1.6); // 덩어리 성장
+  chaos=Math.min(chaos+0.1,0.7);
   const chars=[...s.text.replace(/\s/g,'')];
   chars.forEach(ch=>{
     const a=Math.random()*Math.PI*2,r=60+Math.random()*120;
-    orbs.push({x:W/2+Math.cos(a)*r,y:H/2+Math.sin(a)*r,orbitAngle:a,orbitR:r,orbitSpeed:(Math.random()-0.5)*0.012+(Math.random()>0.5?0.006:-0.006),size:3+Math.random()*3,hue:110+Math.random()*40,life:0.6+Math.random()*0.3,decay:0.0015+Math.random()*0.002,ch,fontSize:11+Math.random()*10,rot:Math.random()*Math.PI*2,drot:(Math.random()-0.5)*0.05});
+    orbs.push({x:W/2+Math.cos(a)*r,y:H/2+Math.sin(a)*r,orbitAngle:a,orbitR:r,
+      orbitSpeed:(Math.random()-0.5)*0.012+(Math.random()>0.5?0.006:-0.006),
+      size:3+Math.random()*3,hue:110+Math.random()*40,
+      life:0.6+Math.random()*0.3,decay:0.0015+Math.random()*0.002,
+      ch,fontSize:11+Math.random()*10,rot:Math.random()*Math.PI*2,drot:(Math.random()-0.5)*0.05});
   });
 }
 
@@ -494,7 +522,9 @@ function rejectSentence(s) {
   s1.pulse={type:'no',r:10,life:1};
   const chars=[...s.text];
   chars.forEach((ch,i)=>{
-    s1.shatter.push({ch,x:W/2+(i-chars.length/2)*13,y:s.y,vx:(Math.random()-0.5)*9,vy:-2-Math.random()*5,life:1,decay:0.02,rot:0,drot:(Math.random()-0.5)*0.32});
+    s1.shatter.push({ch,x:W/2+(i-chars.length/2)*13,y:s.y,
+      vx:(Math.random()-0.5)*9,vy:-2-Math.random()*5,
+      life:1,decay:0.02,rot:0,drot:(Math.random()-0.5)*0.32});
   });
   s.done=true;
 }
@@ -503,42 +533,78 @@ document.getElementById('btn-o').addEventListener('click',()=>userDecide('yes'))
 document.getElementById('btn-x').addEventListener('click',()=>userDecide('no'));
 
 function drawScene1() {
-  chaosBackground(0.08); chaos=Math.max(chaos-0.0003,0.2);
-  if(t%2===0) drawOrganism(0.6); drawOrbs();
+  chaosBackground(0.08);
+  // 덩어리 크기: growth에 따라 점점 커짐
+  if(t%2===0) drawOrganism(s1.growth);
+  drawOrbs();
 
-  const mouthY=H/2+52,mw=26+chaos*18+Math.sin(t*0.04)*6;
-  ctx.save(); ctx.beginPath(); ctx.ellipse(W/2,mouthY,mw,9+chaos*5,0,0,Math.PI*2);
+  const mouthY=H/2+(52+s1.growth*30),mw=26+s1.growth*20+Math.sin(t*0.04)*6;
+  ctx.save(); ctx.beginPath(); ctx.ellipse(W/2,mouthY,mw,9+s1.growth*6,0,0,Math.PI*2);
   ctx.fillStyle='rgba(160,20,15,0.55)'; ctx.strokeStyle='rgba(240,70,40,0.35)'; ctx.lineWidth=1.5;
   ctx.fill(); ctx.stroke(); ctx.restore();
 
   s1.sentences.forEach(s=>{
     if(s.done) return;
-    if(!s.landed){ s.y+=s.vy; s.vy=Math.min(s.vy+0.014,1.4); if(s.y>H*0.38){s.landed=true;s.vy=0;s1.waitingForUser=true;} }
-    if(s.decided&&!s.done){ s.y+=(H/2-s.y)*0.1; s.absorbAlpha=Math.max(0,(H/2-20-s.y)/80); if(s.absorbAlpha<=0.02)s.done=true; }
-    if(!s.done){
-      const isDS=s.type==='dataset',th=isDS?48:40;
-      const shake=s.landed&&!s.decided?Math.sin(t*0.22)*3:0;
-      const alpha=s.decided?(s.absorbAlpha||1):1;
-      ctx.save(); ctx.globalAlpha=alpha;
-      ctx.font=isDS?'13px monospace':'bold 16px sans-serif';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle=isDS?'rgba(6,16,32,0.92)':'rgba(14,14,14,0.82)';
-      ctx.beginPath(); ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,isDS?4:10); ctx.fill();
-      if(isDS){
-        ctx.fillStyle='rgba(60,140,210,0.55)'; ctx.fillRect(W/2-s.tw/2+shake,s.y-th/2,3,th);
-        ctx.font='9px monospace'; ctx.textAlign='left';
-        ctx.fillStyle='rgba(60,160,255,0.6)'; ctx.fillText('DATASET',W/2-s.tw/2+shake+10,s.y-th/2+9);
-        if(s.landed&&!s.decided){ctx.strokeStyle='rgba(60,160,255,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,4);ctx.stroke();}
-        ctx.font='13px monospace'; ctx.textAlign='center';
-        ctx.fillStyle=s.landed&&!s.decided?'rgba(160,210,255,0.95)':'rgba(140,190,240,0.82)';
-        ctx.fillText(s.text,W/2+shake,s.y+4);
-      } else {
-        if(s.landed&&!s.decided){ctx.strokeStyle='rgba(255,210,60,0.45)';ctx.lineWidth=1.2;ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,10);ctx.stroke();}
-        ctx.fillStyle=s.landed&&!s.decided?'rgba(255,242,180,0.95)':'rgba(255,255,255,0.85)';
-        ctx.fillText(s.text,W/2+shake,s.y);
-      }
-      ctx.restore();
+
+    // 낙하
+    if(!s.landed){
+      s.y+=s.vy; s.vy=Math.min(s.vy+0.014,1.6);
+      if(s.y>H*0.36){ s.landed=true; s.vy=0; s1.waitingForUser=true; }
     }
+
+    // 대기 타이머 → 타임아웃이면 둥둥 올라가 사라짐
+    if(s.landed&&!s.decided){
+      s.landTimer++;
+      if(s.landTimer>FLOAT_AWAY_FRAMES && !s.floatingAway){
+        s.floatingAway=true; s1.waitingForUser=false;
+        setTimeout(spawnFeedSentence, 300);
+      }
+    }
+
+    // 위로 떠오르며 사라짐
+    if(s.floatingAway){
+      s.y-=1.2; s.alpha=Math.max(0,s.alpha-0.018);
+      if(s.alpha<=0){ s.done=true; return; }
+    }
+
+    // 수락 → 흡수
+    if(s.decided&&!s.done){
+      s.y+=(H/2-s.y)*0.1;
+      s.alpha=Math.max(0,(H/2-20-s.y)/80);
+      if(s.alpha<=0.02){ s.done=true; return; }
+    }
+
+    const isDS=s.type==='dataset', th=isDS?48:40;
+    const shake=(s.landed&&!s.decided&&!s.floatingAway)?Math.sin(t*0.22)*3:0;
+    // 타임아웃 임박하면 희미해짐
+    const timeoutFade=s.landTimer>FLOAT_AWAY_FRAMES*0.7
+      ?Math.max(0.2,1-(s.landTimer-FLOAT_AWAY_FRAMES*0.7)/(FLOAT_AWAY_FRAMES*0.3)):1;
+
+    ctx.save(); ctx.globalAlpha=s.alpha*timeoutFade;
+    ctx.font=isDS?'13px monospace':'bold 16px sans-serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle=isDS?'rgba(6,16,32,0.92)':'rgba(14,14,14,0.82)';
+    ctx.beginPath(); ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,isDS?4:10); ctx.fill();
+    if(isDS){
+      ctx.fillStyle='rgba(60,140,210,0.55)'; ctx.fillRect(W/2-s.tw/2+shake,s.y-th/2,3,th);
+      ctx.font='9px monospace'; ctx.textAlign='left';
+      ctx.fillStyle='rgba(60,160,255,0.6)'; ctx.fillText('DATASET',W/2-s.tw/2+shake+10,s.y-th/2+9);
+      if(s.landed&&!s.decided&&!s.floatingAway){
+        ctx.strokeStyle='rgba(60,160,255,0.4)';ctx.lineWidth=1;
+        ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,4);ctx.stroke();
+      }
+      ctx.font='13px monospace'; ctx.textAlign='center';
+      ctx.fillStyle=s.landed&&!s.decided?'rgba(160,210,255,0.95)':'rgba(140,190,240,0.82)';
+      ctx.fillText(s.text,W/2+shake,s.y+4);
+    } else {
+      if(s.landed&&!s.decided&&!s.floatingAway){
+        ctx.strokeStyle='rgba(255,210,60,0.45)';ctx.lineWidth=1.2;
+        ctx.beginPath();ctx.roundRect(W/2-s.tw/2+shake,s.y-th/2,s.tw,th,10);ctx.stroke();
+      }
+      ctx.fillStyle=s.landed&&!s.decided?'rgba(255,242,180,0.95)':'rgba(255,255,255,0.85)';
+      ctx.fillText(s.text,W/2+shake,s.y);
+    }
+    ctx.restore();
   });
 
   s1.shatter=s1.shatter.filter(p=>p.life>0);
@@ -556,7 +622,9 @@ function drawScene1() {
       const col=p.type==='yes'?'80,220,120':'220,50,40';
       ctx.save();
       const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,p.r);
-      grd.addColorStop(0,`rgba(${col},${p.life*0.35})`); grd.addColorStop(0.5,`rgba(${col},${p.life*0.12})`); grd.addColorStop(1,`rgba(${col},0)`);
+      grd.addColorStop(0,`rgba(${col},${p.life*0.35})`);
+      grd.addColorStop(0.5,`rgba(${col},${p.life*0.12})`);
+      grd.addColorStop(1,`rgba(${col},0)`);
       ctx.beginPath(); ctx.arc(W/2,H/2,p.r,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
       ctx.beginPath(); ctx.arc(W/2,H/2,p.r,0,Math.PI*2);
       ctx.strokeStyle=`rgba(${col},${p.life*0.7})`; ctx.lineWidth=2.5*p.life; ctx.stroke();
