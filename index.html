@@ -253,7 +253,7 @@ function drawOrbs() {
     }
     ctx.restore();
   });
-  if (orbs.length>180) orbs.splice(0,20);
+  if (orbs.length>80) orbs.splice(0,20);
 }
 
 function chaosBackground(fadeAmt=0.07) {
@@ -420,8 +420,8 @@ let s1 = {
 
 function initScene1() {
   orbs = []; tendrils = [];
-  for (let i=0;i<45;i++) spawnOrb(true);
-  chaos = 0.3;
+  for (let i=0;i<20;i++) spawnOrb(true);  // 45→20
+  chaos = 0.25;
   s1.sentences = []; s1.currentIdx = 0; s1.nextSpawn = 60;
   s1.shatter = []; s1.flashLife = 0;
   s1.btnAlpha = 0; s1.activeBtn = ''; s1.swipeX = 0; s1.pulse = null;
@@ -447,8 +447,7 @@ function drawFeedButtons(waitingS) {
   ctx.beginPath(); ctx.arc(xX, bY, bR*(1 + (xActive&&sp>0.7?0.12:0)), 0, Math.PI*2);
   ctx.strokeStyle = `rgba(255,70,50,${0.5 + (xActive?sp*0.5:0)})`;
   ctx.lineWidth = 2;
-  if (xActive && sp > 0.7) { ctx.shadowColor='rgba(255,60,40,0.6)'; ctx.shadowBlur=20; }
-  ctx.stroke(); ctx.shadowBlur=0;
+  ctx.stroke();
   ctx.font=`bold ${bR*0.9}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillStyle=`rgba(255,80,55,${0.55 + (xActive?sp*0.45:0)})`;
   ctx.fillText('✕', xX, bY+2);
@@ -460,8 +459,7 @@ function drawFeedButtons(waitingS) {
   ctx.beginPath(); ctx.arc(oX, bY, bR*(1 + (oActive&&sp>0.7?0.12:0)), 0, Math.PI*2);
   ctx.strokeStyle = `rgba(80,210,120,${0.5 + (oActive?sp*0.5:0)})`;
   ctx.lineWidth = 2;
-  if (oActive && sp > 0.7) { ctx.shadowColor='rgba(60,220,110,0.6)'; ctx.shadowBlur=20; }
-  ctx.stroke(); ctx.shadowBlur=0;
+  ctx.stroke();
   ctx.font=`bold ${bR*0.95}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillStyle=`rgba(80,215,120,${0.55 + (oActive?sp*0.45:0)})`;
   ctx.fillText('○', oX, bY+1);
@@ -482,9 +480,9 @@ function drawFeedButtons(waitingS) {
 }
 
 function drawScene1() {
-  chaosBackground(0.07);
-  chaos = 0.28 + Math.sin(t*0.005)*0.08;
-  drawOrganism(0.75);
+  chaosBackground(0.08);
+  chaos = 0.2;
+  if (t % 2 === 0) drawOrganism(0.6);  // 1프레임 건너 한 번만
   drawOrbs();
 
   // 입
@@ -545,7 +543,7 @@ function drawScene1() {
       ctx.save();
       ctx.font = isDS ? '13px monospace' : 'bold 16px Malgun Gothic';
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      const tw = ctx.measureText(s.text).width + (isDS ? 48 : 32);
+      const tw = s.tw;
       const th = isDS ? 48 : 40;
       const alpha = (s.decision==='yes'&&s.decided) ? (s.absorbAlpha||1) : 1;
       ctx.globalAlpha = alpha;
@@ -625,11 +623,15 @@ function drawScene1() {
 function spawnNextSentence() {
   if (s1.currentIdx >= FEED_SCRIPT.length) return;
   const script = FEED_SCRIPT[s1.currentIdx];
+  // measureText를 생성 시 한 번만 수행
+  const font = script.type==='dataset' ? '13px monospace' : 'bold 16px Malgun Gothic';
+  ctx.font = font;
+  const tw = ctx.measureText(script.text).width + (script.type==='dataset' ? 48 : 32);
   s1.sentences.push({
-    text: script.text, decision: script.decision,
+    text: script.text, type: script.type, decision: script.decision,
     y: -35, vy: 0.6, waiting:false, decided:false, done:false,
     waitTimer:0, decideAt: script.delay,
-    absorbAlpha:1, life:1,
+    absorbAlpha:1, life:1, tw,
   });
   s1.currentIdx++;
   if (s1.currentIdx < FEED_SCRIPT.length) {
