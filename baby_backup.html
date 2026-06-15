@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>아가야</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; width: 100vw; height: 100vh; overflow: hidden; }
+  canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; }
+  #ui {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 100;
+  }
+  #status { color: rgba(255,255,255,0.3); font-size: 11px; letter-spacing: 2px; font-family: monospace; }
+  #mic-btn {
+    width: 58px; height: 58px; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.6); color: rgba(255,255,255,0.4);
+    font-size: 22px; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(6px);
+  }
+  #mic-btn:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
+  #mic-btn.on { border-color: rgba(255,80,80,0.8); color: #f55; animation: rpulse 1s infinite; }
+  @keyframes rpulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(255,60,60,0.5); }
+    50% { box-shadow: 0 0 0 12px rgba(255,60,60,0); }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="status">마이크를 켜서 말해보세요</div>
+  <button id="mic-btn">🎤</button>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const micBtn = document.getElementById('mic-btn');
+
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// ── 상태 ──
+let micOn = false;
+let volume = 0, smoothVol = 0;
+let chaos = 0.4;        // 기본 혼돈 수준 (0~1), 말할수록 증가
+let purifying = false;
+let purityProgress = 0;
+let returning = false;
+let returnProgress = 0; // 0→1 (10초)
+let t = 0;
+
+// ── 파티클 / 조각 ──
+let orbs = [];       // 둥둥 떠다니는 유기체 조각
+let tendrils = [];   // 촉수
+
+function seedInitialChaos() {
+  // 시작부터 어지럽게
+  for (let i = 0; i < 60; i++) {
+    spawnOrb(true);
+  }
+}
+
+function spawnOrb(initial = false) {
+  const angle = Math.random() * Math.PI * 2;
+  const r = initial
+    ? 60 + Math.random() * Math.min(W, H) * 0.45
+    : 30 + Math.random() * 120;
+  orbs.push({
+    x: W/2 + Math.cos(angle) * r,
+    y: H/2 + Math.sin(angle) * r,
+    vx: (Math.random()-0.5) * 1.2,
+    vy: (Math.random()-0.5) * 1.2,
+    orbitAngle: angle,
+    orbitR: r,
+    orbitSpeed: (Math.random()-0.5) * 0.008 + (Math.random() > 0.5 ? 0.004 : -0.004),
+    size: 2 + Math.random() * (initial ? 5 : 8),
+    hue: Math.random() * 40,       // 붉은~주황
+    life: 0.6 + Math.random() * 0.4,
+    decay: initial ? 0.0005 : 0.001 + Math.random() * 0.002,
+    ch: Math.random() < 0.4 ? randomChar() : null,
+    fontSize: 10 + Math.random() * 18,
+    rot: Math.random() * Math.PI * 2,
+    drot: (Math.random()-0.5) * 0.04,
+  });
+}
+
+function randomChar() {
+  const pool = '아기울음소리어둠공포뱃속살갗근육혈관신경';
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function spawnTendril(fromVol) {
+  const angle = Math.random() * Math.PI * 2;
+  const pts = [];
+  let x = W/2, y = H/2, a = angle;
+  const len = 6 + Math.floor(chaos * 16 + fromVol * 12);
+  for (let i = 0; i < len; i++) {
+    a += (Math.random()-0.5) * 0.7;
+    const speed = 10 + fromVol * 35 + chaos * 18;
+    x += Math.cos(a) * speed;
+    y += Math.sin(a) * speed;
+    pts.push({x, y});
+  }
+  tendrils.push({
+    pts, life: 1,
+    decay: 0.018 + Math.random() * 0.02,
+    width: 1 + fromVol * 3 + chaos * 2,
+    hue: Math.random() * 30,
+  });
+}
+
+// ── 오디오 ──
+let audioCtx, analyser, dataArray;
+let cryOsc, cryGain, cryFilter;
+let cryPhase = 0;
+
+async function startAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const src = audioCtx.createMediaStreamSource(stream);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+  src.connect(analyser);
+}
+
+function getVol() {
+  if (!analyser) return 0;
+  analyser.getByteTimeDomainData(dataArray);
+  let s = 0;
+  for (let v of dataArray) { const d = (v-128)/128; s += d*d; }
+  return Math.sqrt(s / dataArray.length);
+}
+
+function startCry() {
+  if (cryOsc || !audioCtx) return;
+  cryOsc = audioCtx.createOscillator();
+  cryGain = audioCtx.createGain();
+  cryFilter = audioCtx.createBiquadFilter();
+  cryFilter.type = 'bandpass'; cryFilter.frequency.value = 800; cryFilter.Q.value = 3;
+  cryOsc.type = 'sawtooth'; cryOsc.frequency.value = 420;
+  cryGain.gain.value = 0;
+  cryOsc.connect(cryFilter); cryFilter.connect(cryGain); cryGain.connect(audioCtx.destination);
+  cryOsc.start();
+  modulateCry();
+}
+
+function modulateCry() {
+  if (!cryOsc || purifying) return;
+  const t2 = audioCtx.currentTime;
+  const intensity = Math.min(chaos * 1.3, 1);
+  cryOsc.frequency.setValueAtTime(360 + Math.sin(cryPhase)*100 + intensity*150 + smoothVol*80, t2);
+  cryGain.gain.setValueAtTime(Math.min(0.1 + intensity*0.25 + smoothVol*0.1, 0.4), t2);
+  cryPhase += 0.12;
+  setTimeout(modulateCry, 100);
+}
+
+function stopCry() {
+  if (!cryGain) return;
+  const t2 = audioCtx.currentTime;
+  cryGain.gain.setValueAtTime(cryGain.gain.value, t2);
+  cryGain.gain.linearRampToValueAtTime(0, t2 + 2);
+  setTimeout(() => { try { cryOsc.stop(); } catch(e){} cryOsc=null; cryGain=null; }, 2100);
+}
+
+// ── 음성인식 ──
+let recognition;
+
+function setupSpeech() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { statusEl.textContent = 'Chrome 필요'; return false; }
+  recognition = new SR();
+  recognition.lang = 'ko-KR';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 3;
+
+  recognition.onresult = (e) => {
+    if (purifying) return;
+    let allText = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      for (let j = 0; j < e.results[i].length; j++) {
+        allText += e.results[i][j].transcript;
+      }
+    }
+    // 사랑해 감지 — 여러 표기 허용
+    if (/사랑해|사랑헤|사랑혜|사라해|사랑이|saranghae/i.test(allText)) {
+      triggerPurify();
+      return;
+    }
+    if (e.results[e.results.length-1].isFinal) {
+      const text = e.results[e.results.length-1][0].transcript.trim();
+      if (text) absorbText(text);
+    }
+  };
+
+  recognition.onerror = () => {};
+  recognition.onend = () => {
+    if (micOn && !purifying) {
+      try { recognition.start(); } catch(e) {}
+    }
+  };
+  return true;
+}
+
+function absorbText(text) {
+  chaos = Math.min(chaos + text.replace(/\s/g, '').length * 0.03, 1);
+  startCry();
+  // 글자들 파티클로
+  for (const ch of text.replace(/\s/g, '')) {
+    spawnOrb(false);
+    orbs[orbs.length-1].ch = ch;
+    orbs[orbs.length-1].size = 14 + Math.random()*10;
+    orbs[orbs.length-1].decay = 0.0008;
+  }
+}
+
+// ── 정화 ──
+let purifyParticles = [];
+
+function triggerPurify() {
+  if (purifying) return;
+  purifying = true;
+  stopCry();
+  try { recognition.stop(); } catch(e){}
+  micBtn.classList.remove('on');
+  statusEl.textContent = '🩷';
+
+  // 기존 orb들을 중심으로 빨아들이기 위해 velocity 변경
+  orbs.forEach(o => {
+    const dx = W/2 - o.x, dy = H/2 - o.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    o.vx = dx/dist * 3;
+    o.vy = dy/dist * 3;
+    o.pullToCenter = true;
+  });
+
+  // 빛 파티클 생성
+  for (let i = 0; i < 80; i++) {
+    const a = Math.random() * Math.PI * 2;
+    purifyParticles.push({
+      x: W/2, y: H/2,
+      vx: Math.cos(a) * (1 + Math.random()*3),
+      vy: Math.sin(a) * (1 + Math.random()*3),
+      life: 1,
+      size: 2 + Math.random()*4,
+      hue: 30 + Math.random()*30,
+    });
+  }
+}
+
+function beginReturn() {
+  purifying = false;
+  orbs = []; tendrils = []; purifyParticles = [];
+  seedInitialChaos();
+  chaos = 0;
+  statusEl.textContent = '마이크를 켜서 말해보세요';
+  micBtn.textContent = '🎤';
+}
+
+// ── 그리기 ──
+function draw() {
+  t++;
+  volume = getVol();
+  smoothVol += (volume - smoothVol) * 0.2;
+
+  if (purifying) {
+    drawPurify();
+  } else if (returning) {
+    // returnProgress: 10초 = 600프레임(60fps 기준)
+    returnProgress = Math.min(returnProgress + 1/600, 1);
+    // 배경을 검정으로 천천히 복귀
+    ctx.fillStyle = `rgba(0,0,0,${0.02 + returnProgress * 0.05})`;
+    ctx.fillRect(0, 0, W, H);
+    // chaos도 서서히 복귀
+    chaos = returnProgress * 0.4;
+    drawChaos();
+    if (returnProgress >= 1) returning = false;
+  } else {
+    drawChaos();
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function drawChaos() {
+  // 잔상
+  const fadeSpeed = 0.06 + smoothVol * 0.1;
+  ctx.fillStyle = `rgba(0,0,0,${fadeSpeed})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // 볼륨 있을 때 ambient 혼돈 증가
+  if (micOn && smoothVol > 0.02) {
+    chaos = Math.min(chaos + smoothVol * 0.003, 1);
+  }
+
+  // 자연 감소
+  chaos = Math.max(chaos - 0.0002, micOn ? 0.35 : 0.1);
+
+  // 새 orb / tendril 자동 생성 (항상)
+  const spawnRate = 0.15 + chaos * 0.3 + smoothVol * 0.5;
+  if (Math.random() < spawnRate) spawnOrb(false);
+  if (Math.random() < 0.08 + chaos * 0.25 + smoothVol * 0.6) spawnTendril(smoothVol);
+
+  // 중심 유기체
+  drawOrganism();
+
+  // 텐드릴
+  tendrils = tendrils.filter(td => td.life > 0);
+  tendrils.forEach(td => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(W/2, H/2);
+    td.pts.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.strokeStyle = `hsla(${td.hue},85%,55%,${td.life * 0.7})`;
+    ctx.lineWidth = td.width * td.life;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.restore();
+    td.life -= td.decay;
+  });
+
+  // 오브
+  orbs = orbs.filter(o => o.life > 0);
+  orbs.forEach(o => {
+    o.orbitAngle += o.orbitSpeed * (1 + smoothVol * 5 + chaos);
+    o.orbitR += (Math.random()-0.5) * (0.5 + smoothVol * 4);
+    o.orbitR = Math.max(20, Math.min(o.orbitR, Math.min(W,H)*0.52));
+    o.x = W/2 + Math.cos(o.orbitAngle) * o.orbitR + (Math.random()-0.5)*smoothVol*12;
+    o.y = H/2 + Math.sin(o.orbitAngle) * o.orbitR + (Math.random()-0.5)*smoothVol*12;
+    o.rot += o.drot * (1 + smoothVol*3);
+    o.life -= o.decay * (0.5 + chaos*0.5);
+
+    ctx.save();
+    ctx.globalAlpha = o.life * 0.85;
+    ctx.translate(o.x, o.y);
+    ctx.rotate(o.rot);
+
+    if (o.ch) {
+      const shake = smoothVol * 10;
+      // 색 분리 글리치
+      ctx.fillStyle = `rgba(255,30,60,0.8)`;
+      ctx.font = `bold ${o.fontSize}px Malgun Gothic`;
+      ctx.fillText(o.ch, 2+Math.random()*shake, 2+Math.random()*shake);
+      ctx.fillStyle = `rgba(0,220,200,0.8)`;
+      ctx.fillText(o.ch, -2-Math.random()*shake, -2-Math.random()*shake);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(o.ch, 0, 0);
+    } else {
+      const grd = ctx.createRadialGradient(0,0,0,0,0,o.size);
+      grd.addColorStop(0, `hsla(${o.hue},80%,70%,1)`);
+      grd.addColorStop(1, `hsla(${o.hue},80%,40%,0)`);
+      ctx.beginPath();
+      ctx.arc(0, 0, o.size * (1 + smoothVol * 2), 0, Math.PI*2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // orb 최대치 제한
+  if (orbs.length > 200) orbs.splice(0, orbs.length - 200);
+
+  // 스캔라인 노이즈
+  if (smoothVol > 0.05 || chaos > 0.6) {
+    const lines = Math.floor((smoothVol + chaos*0.3) * 15);
+    for (let i = 0; i < lines; i++) {
+      ctx.fillStyle = `rgba(255,${Math.floor(Math.random()*40)},${Math.floor(Math.random()*40)},${Math.random()*0.25})`;
+      ctx.fillRect(0, Math.random()*H, W * (0.3 + Math.random()*0.7), 1);
+    }
+  }
+}
+
+function drawOrganism() {
+  ctx.save();
+  ctx.translate(W/2, H/2);
+
+  // 내부 글로우
+  const baseR = 35 + chaos * 55;
+  const pulseR = baseR + smoothVol * 100;
+  const grd = ctx.createRadialGradient(0,0,0,0,0,pulseR*2.2);
+  grd.addColorStop(0, `rgba(200,30,20,${0.18 + smoothVol*0.3 + chaos*0.1})`);
+  grd.addColorStop(0.4, `rgba(120,0,0,0.07)`);
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath(); ctx.arc(0,0,pulseR*2.5,0,Math.PI*2);
+  ctx.fillStyle = grd; ctx.fill();
+
+  // 외곽 울렁임 레이어 3개
+  for (let layer = 0; layer < 3; layer++) {
+    const lr = pulseR * (0.65 + layer*0.2);
+    ctx.beginPath();
+    const seg = 90;
+    for (let i = 0; i <= seg; i++) {
+      const a = (i/seg)*Math.PI*2;
+      const n =
+        Math.sin(a*3 + t*0.035 + layer*1.2) * (8 + smoothVol*45 + chaos*28) +
+        Math.sin(a*7 - t*0.06 + layer*0.7) * (4 + chaos*20) +
+        Math.sin(a*17 + t*0.025) * smoothVol * 18;
+      const px = Math.cos(a)*(lr+n), py = Math.sin(a)*(lr+n);
+      i===0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+    }
+    ctx.closePath();
+    const alpha = (0.5-layer*0.12) * (0.25 + smoothVol*0.75 + chaos*0.4);
+    ctx.strokeStyle = `hsla(${layer*8},85%,${45+layer*5}%,${alpha})`;
+    ctx.lineWidth = 2-layer*0.5;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ── 정화 그리기 ──
+let purifyBg = 0;
+
+function drawPurify() {
+  purityProgress = Math.min(purityProgress + 0.006, 1);
+  purifyBg = Math.min(purifyBg + 0.015, 1);
+
+  // 배경 서서히 밝아짐
+  ctx.fillStyle = `rgba(255,245,235,${0.06 + purityProgress*0.04})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // 중심에서 퍼지는 빛
+  const lightR = purityProgress * Math.max(W,H) * 0.9;
+  const grd = ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,lightR);
+  grd.addColorStop(0, `rgba(255,240,200,${0.25 * purityProgress})`);
+  grd.addColorStop(0.4, `rgba(255,200,150,${0.1 * purityProgress})`);
+  grd.addColorStop(1, 'rgba(255,200,150,0)');
+  ctx.beginPath(); ctx.arc(W/2,H/2,lightR,0,Math.PI*2);
+  ctx.fillStyle = grd; ctx.fill();
+
+  // orb들 중심으로 빨려들어가며 사라짐
+  orbs = orbs.filter(o => o.life > 0);
+  orbs.forEach(o => {
+    const dx = W/2 - o.x, dy = H/2 - o.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    o.x += dx/dist * (3 + purityProgress*8);
+    o.y += dy/dist * (3 + purityProgress*8);
+    o.life -= 0.015 + purityProgress*0.03;
+    o.size *= 0.97;
+
+    if (dist < 20 || o.life <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = o.life * 0.5;
+    ctx.translate(o.x, o.y);
+    if (o.ch) {
+      ctx.font = `${o.fontSize * (1-purityProgress*0.5)}px Malgun Gothic`;
+      ctx.fillStyle = `rgba(255,200,180,${o.life})`;
+      ctx.fillText(o.ch, 0, 0);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0,0,o.size,0,Math.PI*2);
+      ctx.fillStyle = `rgba(255,200,160,${o.life})`;
+      ctx.fill();
+    }
+    ctx.restore();
+  });
+
+  // 텐드릴 페이드
+  tendrils = tendrils.filter(td => td.life > 0);
+  tendrils.forEach(td => {
+    td.life -= 0.04;
+    ctx.save();
+    ctx.globalAlpha = td.life * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(W/2,H/2);
+    td.pts.forEach(p => ctx.lineTo(p.x, p.y));
+    ctx.strokeStyle = `rgba(255,180,150,${td.life})`;
+    ctx.lineWidth = td.width * td.life;
+    ctx.stroke();
+    ctx.restore();
+  });
+
+  // 빛 파티클 (바깥으로 퍼짐)
+  purifyParticles = purifyParticles.filter(p => p.life > 0);
+  purifyParticles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 1.04; p.vy *= 1.04; // 가속
+    p.life -= 0.008;
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI*2);
+    ctx.fillStyle = `hsl(${p.hue},80%,80%)`;
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // 링 파동
+  for (let i = 0; i < 4; i++) {
+    const phase = (purityProgress * 2 + i*0.25) % 1;
+    const r = phase * Math.max(W,H) * 0.7;
+    ctx.save();
+    ctx.globalAlpha = (1-phase) * 0.4;
+    ctx.beginPath();
+    ctx.arc(W/2, H/2, r, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,220,180,1)`;
+    ctx.lineWidth = 2*(1-phase);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 정화 완료 → 복귀 시작
+  if (purityProgress >= 1 && !returning) {
+    returning = true;
+    returnProgress = 0;
+    setTimeout(beginReturn, 500);
+  }
+}
+
+// ── 버튼 ──
+micBtn.addEventListener('click', async () => {
+  if (purifying || returning) {
+    // 리셋
+    purifying = false; returning = false;
+    purityProgress = 0; purifyBg = 0; returnProgress = 0;
+    chaos = 0.4; orbs = []; tendrils = []; purifyParticles = [];
+    seedInitialChaos();
+    micBtn.textContent = '🎤';
+    statusEl.textContent = '마이크를 켜서 말해보세요';
+    return;
+  }
+
+  if (micOn) {
+    micOn = false;
+    micBtn.classList.remove('on');
+    statusEl.textContent = '마이크를 켜서 말해보세요';
+    try { recognition.stop(); } catch(e){}
+    return;
+  }
+
+  try {
+    await startAudio();
+    if (!setupSpeech()) return;
+    recognition.start();
+    micOn = true;
+    micBtn.classList.add('on');
+    statusEl.textContent = '듣는 중 — 사랑해라고 말해보세요';
+    startCry();
+  } catch(e) {
+    statusEl.textContent = '마이크 권한이 필요해요';
+  }
+});
+
+seedInitialChaos();
+draw();
+</script>
+</body>
+</html>
