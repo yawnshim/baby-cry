@@ -284,8 +284,64 @@ let s0 = {
   purifyParticles: [],
   purifyP: 0,
   returnP: 0,
-  phase: 'chaos', // chaos | purify | calm
+  phase: 'chaos',
 };
+
+// ── 공유 네온 dot 시스템 ──
+let neonDots = [];
+const NEON_PALETTE = [
+  '0,255,200',   // 시안
+  '180,0,255',   // 마젠타
+  '0,200,255',   // 하늘
+  '255,255,0',   // 옐로우
+  '80,255,80',   // 라임
+  '255,60,200',  // 핑크
+  '255,255,255', // 화이트
+];
+
+function spawnNeonDot(cx, cy, spread=1) {
+  const a = Math.random()*Math.PI*2;
+  const spd = (0.5 + Math.random()*3.5) * spread;
+  const col = NEON_PALETTE[Math.floor(Math.random()*NEON_PALETTE.length)];
+  neonDots.push({
+    x: cx + (Math.random()-0.5)*80*spread,
+    y: cy + (Math.random()-0.5)*80*spread,
+    vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+    r: 1.5 + Math.random()*3.5,
+    col,
+    life: 0.6 + Math.random()*0.4,
+    decay: 0.012 + Math.random()*0.018,
+    flicker: Math.random()*Math.PI*2,
+    flickerSpeed: 0.15 + Math.random()*0.25,
+  });
+}
+
+function drawNeonDots() {
+  neonDots = neonDots.filter(d => d.life > 0);
+  neonDots.forEach(d => {
+    d.x += d.vx; d.y += d.vy;
+    d.vx *= 0.97; d.vy *= 0.97;
+    d.flicker += d.flickerSpeed;
+    d.life -= d.decay;
+    const flk = 0.5 + Math.sin(d.flicker)*0.5;
+    const a = d.life * flk;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.shadowColor = `rgba(${d.col},${a})`;
+    ctx.shadowBlur = 10 + flk*14;
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r*(0.5+flk*0.5), 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${d.col},1)`;
+    ctx.fill();
+    // 작은 십자 글로우
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = `rgba(${d.col},${a*0.5})`;
+    ctx.lineWidth = 0.5;
+    const cr = d.r*2;
+    ctx.beginPath(); ctx.moveTo(d.x-cr,d.y); ctx.lineTo(d.x+cr,d.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(d.x,d.y-cr); ctx.lineTo(d.x,d.y+cr); ctx.stroke();
+    ctx.restore();
+  });
+}
 
 function initScene0() {
   orbs = []; tendrils = [];
@@ -359,6 +415,11 @@ function drawScene0() {
       ctx.save(); ctx.globalAlpha=p.life; ctx.beginPath(); ctx.arc(p.x,p.y,p.size*p.life,0,Math.PI*2);
       ctx.fillStyle=`hsl(${p.hue},80%,80%)`; ctx.fill(); ctx.restore();
     });
+
+    // 네온 dot 폭발
+    const spawnCount = Math.floor(2 + s0.purifyP*8);
+    for (let i=0;i<spawnCount;i++) spawnNeonDot(W/2, H/2, 1+s0.purifyP*2.5);
+    drawNeonDots();
 
     if (s0.purifyP >= 1) { s0.phase = 'calm'; chaos = 0; orbs=[]; tendrils=[]; }
   }
@@ -725,13 +786,21 @@ function drawScene2() {
 
   if (s2.phase === 'glow') {
     s2.fullGlow = Math.min(s2.fullGlow + 0.008, 1);
-    // 전체 환해짐
-    ctx.fillStyle=`rgba(200,230,255,${s2.fullGlow*0.12})`; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle=`rgba(200,230,255,${s2.fullGlow*0.08})`; ctx.fillRect(0,0,W,H);
     const grd=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.7);
-    grd.addColorStop(0,`rgba(180,220,255,${s2.fullGlow*0.25})`);
+    grd.addColorStop(0,`rgba(180,220,255,${s2.fullGlow*0.18})`);
     grd.addColorStop(1,'rgba(0,0,0,0)');
     ctx.beginPath(); ctx.arc(W/2,H/2,Math.max(W,H)*0.7,0,Math.PI*2);
     ctx.fillStyle=grd; ctx.fill();
+
+    // 네온 dot — 데이터센터 주변에서 터짐
+    const burst = Math.floor(3 + s2.fullGlow*10);
+    for (let i=0;i<burst;i++) {
+      const rx = W/2 + (Math.random()-0.5)*260;
+      const ry = H/2 + (Math.random()-0.5)*130;
+      spawnNeonDot(rx, ry, 0.8 + s2.fullGlow*1.8);
+    }
+    drawNeonDots();
   }
 }
 
