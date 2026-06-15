@@ -128,7 +128,7 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
   max-width:calc(100% - 80px); line-height:1.8;
 }
 
-/* ── DRAW 버튼 ── */
+/* ── COOK 버튼 ── */
 #draw-btn {
   margin-top:10px; padding:7px 20px; border-radius:20px;
   border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.5);
@@ -141,24 +141,41 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
 /* ── 드로우 모달 ── */
 #draw-modal {
   display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-  background:rgba(0,0,0,0.88); z-index:500;
-  flex-direction:column; align-items:center; justify-content:center; gap:16px;
+  background:rgba(0,0,0,0.9); z-index:500;
+  flex-direction:column; align-items:center; justify-content:center; gap:14px;
 }
 #draw-modal.open { display:flex; }
+#draw-modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  width:min(300px, calc(100vw - 80px));
+}
+#draw-label { color:rgba(255,255,255,0.25); font-size:9px; letter-spacing:3px; font-family:monospace; }
+#draw-close {
+  background:none; border:1px solid rgba(255,255,255,0.15); color:rgba(255,255,255,0.35);
+  border-radius:50%; width:28px; height:28px; font-size:13px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-family:monospace; touch-action:manipulation; transition:all 0.2s;
+}
+#draw-close:hover, #draw-close:active { color:rgba(255,255,255,0.8); border-color:rgba(255,255,255,0.5); }
 #draw-canvas {
-  border:1px solid rgba(255,255,255,0.3); border-radius:4px;
-  background:#0a0a0a; touch-action:none; cursor:crosshair;
-  max-width:calc(100vw - 80px); max-height:calc(100vh - 200px);
+  border:1px solid rgba(255,255,255,0.2); border-radius:6px;
+  background:#080808; touch-action:none; cursor:crosshair;
+  width:min(300px, calc(100vw - 80px));
+  height:min(220px, calc(100vh - 260px));
 }
-.draw-modal-btns { display:flex; gap:16px; }
+.draw-modal-btns { display:flex; gap:12px; }
 .draw-modal-btns button {
-  padding:9px 22px; border-radius:20px; font-family:monospace;
+  padding:10px 24px; border-radius:20px; font-family:monospace;
   font-size:10px; letter-spacing:2px; cursor:pointer; touch-action:manipulation;
+  transition:all 0.2s;
 }
-#draw-clear { border:1px solid rgba(255,70,50,0.4); background:rgba(0,0,0,0.6); color:rgba(255,100,80,0.7); }
-#draw-submit { border:1px solid rgba(80,220,120,0.4); background:rgba(0,0,0,0.6); color:rgba(80,220,120,0.8); }
-#draw-cancel { border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.5); color:rgba(255,255,255,0.3); }
-#draw-label { color:rgba(255,255,255,0.2); font-size:9px; letter-spacing:2px; font-family:monospace; }
+#draw-clear { border:1px solid rgba(255,70,50,0.4); background:rgba(0,0,0,0.6); color:rgba(255,100,80,0.65); }
+#draw-clear:active { background:rgba(255,70,50,0.15); }
+#draw-submit {
+  border:1px solid rgba(80,220,120,0.5); background:rgba(0,0,0,0.6); color:rgba(80,220,120,0.85);
+  font-weight:bold;
+}
+#draw-submit:active { background:rgba(80,220,120,0.15); }
 
 /* ── 모바일 반응형 ── */
 @media (max-width:480px) {
@@ -212,17 +229,19 @@ canvas { position:fixed; top:0; left:0; width:100%; height:100%; }
     <button class="feed-btn" id="btn-x">✕</button>
     <button class="feed-btn" id="btn-o">○</button>
   </div>
-  <button id="draw-btn">✏ DRAW</button>
+  <button id="draw-btn">✏ COOK</button>
 </div>
 
 <!-- 드로우 모달 -->
 <div id="draw-modal">
-  <div id="draw-label">DRAW &amp; FEED</div>
-  <canvas id="draw-canvas" width="300" height="220"></canvas>
+  <div id="draw-modal-header">
+    <div id="draw-label">DRAW &amp; COOK</div>
+    <button id="draw-close">✕</button>
+  </div>
+  <canvas id="draw-canvas"></canvas>
   <div class="draw-modal-btns">
     <button id="draw-clear">CLEAR</button>
-    <button id="draw-submit">FEED IT</button>
-    <button id="draw-cancel">CANCEL</button>
+    <button id="draw-submit">🍽 FEED IT</button>
   </div>
 </div>
 
@@ -924,11 +943,11 @@ function draw() {
   let drawing=false;
 
   function resizeDrawCanvas(){
-    const maxW=Math.min(320,window.innerWidth-80);
-    const maxH=Math.min(240,window.innerHeight-200);
-    dc.width=maxW; dc.height=maxH;
-    dctx.fillStyle='#0a0a0a'; dctx.fillRect(0,0,dc.width,dc.height);
-    dctx.strokeStyle='rgba(200,220,255,0.85)'; dctx.lineWidth=2.5;
+    const maxW=Math.min(300,window.innerWidth-80);
+    const maxH=Math.min(220,window.innerHeight-260);
+    dc.width=maxW; dc.height=Math.max(maxH,120);
+    dctx.fillStyle='#080808'; dctx.fillRect(0,0,dc.width,dc.height);
+    dctx.strokeStyle='rgba(200,220,255,0.9)'; dctx.lineWidth=3;
     dctx.lineCap='round'; dctx.lineJoin='round';
   }
 
@@ -945,10 +964,10 @@ function draw() {
   document.getElementById('draw-btn').addEventListener('click',()=>{
     resizeDrawCanvas(); modal.classList.add('open');
   });
-  document.getElementById('draw-cancel').addEventListener('click',()=>modal.classList.remove('open'));
+  document.getElementById('draw-close').addEventListener('click',()=>modal.classList.remove('open'));
   document.getElementById('draw-clear').addEventListener('click',()=>{
-    dctx.fillStyle='#0a0a0a'; dctx.fillRect(0,0,dc.width,dc.height);
-    dctx.strokeStyle='rgba(200,220,255,0.85)'; dctx.lineWidth=2.5; dctx.lineCap='round'; dctx.lineJoin='round';
+    dctx.fillStyle='#080808'; dctx.fillRect(0,0,dc.width,dc.height);
+    dctx.strokeStyle='rgba(200,220,255,0.9)'; dctx.lineWidth=3; dctx.lineCap='round'; dctx.lineJoin='round';
   });
   document.getElementById('draw-submit').addEventListener('click',()=>{
     modal.classList.remove('open');
